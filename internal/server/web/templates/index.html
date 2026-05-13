@@ -1,0 +1,12 @@
+{{template "head" (dict "Title" "首页" "Site" .Site)}}
+<main class="container narrow">
+  <section class="hero">
+    <h1>{{.Site.OrgName}}<br>应用分发</h1>
+    <p>请通过管理员提供的下载链接访问对应应用，例如：</p>
+    <pre><code>/d/&lt;app-short-id&gt;</code></pre>
+    <p style="margin-top:24px">
+      <a class="btn btn-primary" href="/admin/login">管理员登录</a>
+    </p>
+  </section>
+</main>
+{{template "foot" .}}

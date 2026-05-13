@@ -1,0 +1,16 @@
+{{template "head" (dict "Title" "管理员登录" "Site" .Site)}}
+<main class="container narrow">
+  <h1>管理员登录</h1>
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+  <form method="post" action="/admin/login" class="form">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <label>用户名
+      <input type="text" name="username" required autofocus>
+    </label>
+    <label>密码
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit" class="btn btn-primary">登录</button>
+  </form>
+</main>
+{{template "foot" .}}

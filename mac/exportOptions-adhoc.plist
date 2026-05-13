@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Xcode exportArchive 配置示例 — Ad Hoc 签名
+  把 <YOUR_TEAM_ID> 替换为你的 Apple 开发者 Team ID（在 developer.apple.com → Membership 查看）
+  其它可选 method：development / app-store-connect / enterprise
+  详见：xcodebuild -help -exportArchive
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>ad-hoc</string>
+
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID</string>
+
+    <key>signingStyle</key>
+    <string>automatic</string>
+
+    <key>stripSwiftSymbols</key>
+    <true/>
+
+    <key>compileBitcode</key>
+    <false/>
+
+    <!-- 嵌入 OnDemandResources（按需可改 false 减小包） -->
+    <key>embedOnDemandResourcesAssetPacksInBundle</key>
+    <true/>
+
+    <!-- thinning：留空让 Xcode 自动选 thinned；想要 fat ipa 改 <thin-for-all-variants> -->
+    <key>thinning</key>
+    <string>&lt;none&gt;</string>
+
+    <!-- 如果用手动签名，取消下面注释并填实际值
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.example.myapp</key>
+        <string>My App Ad Hoc Profile</string>
+    </dict>
+    -->
+</dict>
+</plist>

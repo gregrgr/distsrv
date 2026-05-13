@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build + vet + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: true
+          cache: true
+
+      - name: go mod tidy (check no diff)
+        run: |
+          go mod tidy
+          if ! git diff --quiet -- go.mod go.sum; then
+            echo "go.mod / go.sum are not tidy. Run: go mod tidy"
+            git diff -- go.mod go.sum
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race ./...
+
+      - name: Cross-compile sanity check
+        run: |
+          set -e
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os=${target%/*}; arch=${target#*/}
+            echo "==> $os/$arch"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+              go build -o /tmp/distsrv-$os-$arch ./cmd/distsrv
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+              go build -o /tmp/distsrv-cli-$os-$arch ./cmd/distsrv-cli
+          done
+          ls -lh /tmp/distsrv-* /tmp/distsrv-cli-*
+
+  docker-deploy:
+    name: Docker deploy + API + CLI e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Run docker-test.sh
+        run: |
+          chmod +x docker-test.sh deploy.sh
+          bash docker-test.sh

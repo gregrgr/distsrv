@@ -1,0 +1,52 @@
+# distsrv 配置示例
+# 部署到 /etc/distsrv/config.toml，权限建议 0640，所有者 root:distsrv
+
+[server]
+# 你的分发域名（必填，生产模式）。需要把它的 A 记录指到本服务器公网 IP。
+domain = "dist.example.com"
+http_addr  = ":80"
+https_addr = ":443"
+# Let's Encrypt 通知邮箱（必填，生产模式）
+acme_email = "admin@example.com"
+acme_cache_dir = "/var/lib/distsrv/certs"
+# 上传大文件需要较长的 ReadTimeout（秒）。WriteTimeout 内部固定为 0，避免下载被截断。
+read_timeout_seconds = 300
+# 开发模式：忽略 domain/HTTPS，监听 dev_addr 上的明文 HTTP。生产部署请保持 false。
+dev_mode = false
+dev_addr = ":8080"
+
+[admin]
+# 仅当 users 表为空时使用，初始化第一个管理员账号
+username = "admin"
+# 启动后请立即在 /admin/login 改密码，然后把下面这行删除
+password = "change-me-on-first-login"
+
+[storage]
+data_dir = "/var/lib/distsrv"
+uploads_subdir = "uploads"
+# 单个上传包大小上限（MB）
+max_upload_mb = 300
+# 每个 app、每个平台保留的版本数；超过会自动删除最旧的（当前版本永不删）
+keep_versions_per_platform = 3
+# 剩余磁盘 < 此值（MB）时禁止上传
+low_disk_threshold_mb = 500
+
+[db]
+path = "/var/lib/distsrv/distsrv.db"
+busy_timeout_ms = 5000
+
+[site]
+org_name = "My Company"
+# org_slug 用于生成 PayloadIdentifier，建议小写英文 + 短横线
+org_slug = "mycompany"
+support_contact = "ops@example.com"
+
+[security]
+# session 有效期（小时），默认 7 天
+session_ttl_hours = 168
+# bcrypt cost，10 为推荐值；越高越慢但越安全
+bcrypt_cost = 10
+
+[log]
+# debug, info, warn, error
+level = "info"

@@ -1,0 +1,25 @@
+# Force LF line endings for text files (matters for shell scripts run on Linux server).
+* text=auto eol=lf
+
+# Explicit declarations for cross-platform safety
+*.go         text eol=lf
+*.sh         text eol=lf
+*.toml       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.md         text eol=lf
+*.html       text eol=lf
+*.css        text eol=lf
+*.js         text eol=lf
+*.plist      text eol=lf
+*.tmpl       text eol=lf
+*.service    text eol=lf
+Makefile     text eol=lf
+
+# Binaries
+*.exe        binary
+*.png        binary
+*.ipa        binary
+*.apk        binary
+*.tar.gz     binary
+*.zip        binary

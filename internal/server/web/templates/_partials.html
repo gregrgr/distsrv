@@ -1,0 +1,29 @@
+{{define "head"}}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>{{.Title}} · {{.Site.OrgName}}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{{end}}
+
+{{define "foot"}}
+<footer class="footer">
+  <small>&copy; {{.Site.OrgName}} · <a href="mailto:{{.Site.SupportContact}}">{{.Site.SupportContact}}</a></small>
+</footer>
+</body>
+</html>
+{{end}}
+
+{{define "admin_nav"}}
+<nav class="admin-nav">
+  <a href="/admin/" class="brand">distsrv</a>
+  <span class="spacer"></span>
+  <span class="user">{{.User.Username}}</span>
+  <form method="post" action="/admin/logout" style="display:inline">
+    <button type="submit" class="link-btn">退出</button>
+  </form>
+</nav>
+{{end}}

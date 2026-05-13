@@ -1,0 +1,26 @@
+# Build artifacts
+/distsrv
+/distsrv.exe
+/distsrv-arm64
+/distsrv-cli
+/distsrv-cli.exe
+/dist/
+
+# Runtime / dev data
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Local configs
+config.local.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp

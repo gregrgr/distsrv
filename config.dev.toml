@@ -1,0 +1,36 @@
+# Dev-mode config for local testing.
+# Run: make build && ./distsrv -config ./config.dev.toml
+# Then open http://localhost:8080
+
+[server]
+dev_mode = true
+dev_addr = ":8080"
+# domain / acme_email not required in dev mode
+read_timeout_seconds = 300
+
+[admin]
+username = "admin"
+password = "admin123"
+
+[storage]
+data_dir = "./data"
+uploads_subdir = "uploads"
+max_upload_mb = 300
+keep_versions_per_platform = 3
+low_disk_threshold_mb = 100
+
+[db]
+path = "./data/distsrv.db"
+busy_timeout_ms = 5000
+
+[site]
+org_name = "Dev"
+org_slug = "dev"
+support_contact = "dev@local"
+
+[security]
+session_ttl_hours = 168
+bcrypt_cost = 10
+
+[log]
+level = "debug"

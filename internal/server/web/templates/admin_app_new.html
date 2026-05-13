@@ -1,0 +1,19 @@
+{{template "head" (dict "Title" "新建应用" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container narrow">
+  <h1>新建应用</h1>
+  <form method="post" action="/admin/apps/new" class="form">
+    <label>名称
+      <input type="text" name="name" required maxlength="100">
+    </label>
+    <label>short_id（URL 路径，字母数字/-/_）
+      <input type="text" name="short_id" required pattern="[a-zA-Z0-9_-]{2,32}">
+    </label>
+    <label>描述（可选）
+      <textarea name="description" rows="3"></textarea>
+    </label>
+    <button type="submit" class="btn btn-primary">创建</button>
+    <a class="btn" href="/admin/">取消</a>
+  </form>
+</main>
+{{template "foot" .}}

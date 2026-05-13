@@ -1,0 +1,106 @@
+{{template "head" (dict "Title" .App.Name "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>{{.App.Name}} <small><code>{{.App.ShortID}}</code></small></h1>
+    <div class="actions">
+      <a class="btn" href="{{.BaseURL}}/d/{{.App.ShortID}}" target="_blank">查看下载页</a>
+      <a class="btn" href="/admin/apps/{{.App.ID}}/udids">UDIDs ({{.UDIDCount}})</a>
+      <a class="btn" href="/admin/apps/{{.App.ID}}/stats">统计</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <h3>基本信息</h3>
+    <form method="post" action="/admin/apps/{{.App.ID}}/edit" class="form">
+      <label>名称
+        <input type="text" name="name" value="{{.App.Name}}" required>
+      </label>
+      <label>short_id
+        <input type="text" name="short_id" value="{{.App.ShortID}}" pattern="[a-zA-Z0-9_-]{2,32}" required>
+      </label>
+      <label>描述
+        <textarea name="description" rows="2">{{.App.Description}}</textarea>
+      </label>
+      <button type="submit" class="btn">保存</button>
+    </form>
+    <p class="hint">iOS Bundle: <code>{{if .App.IOSBundleID}}{{.App.IOSBundleID}}{{else}}—{{end}}</code> · Android Package: <code>{{if .App.AndroidPkg}}{{.App.AndroidPkg}}{{else}}—{{end}}</code></p>
+  </section>
+
+  <section class="card">
+    <h3>上传新版本</h3>
+    <form method="post" action="/admin/apps/{{.App.ID}}/upload" enctype="multipart/form-data" class="form">
+      <input type="file" name="file" accept=".ipa,.apk" required>
+      <button type="submit" class="btn btn-primary">上传</button>
+      <p class="hint">支持 .ipa（iOS Ad Hoc 签名）和 .apk。上传后会自动解析版本和图标。</p>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>iOS 版本</h3>
+    {{template "version_table" (dict "App" .App "Versions" .IOSVersions "CurrentID" .App.CurrentIOSVersionID "Platform" "ios")}}
+  </section>
+
+  <section class="card">
+    <h3>Android 版本</h3>
+    {{template "version_table" (dict "App" .App "Versions" .AndroidVersions "CurrentID" .App.CurrentAndroidVersionID "Platform" "android")}}
+  </section>
+
+  <section class="card">
+    <h3>下载密码</h3>
+    <p class="hint">设置后，访问下载页需要先输入密码。留空提交则清除密码。</p>
+    <form method="post" action="/admin/apps/{{.App.ID}}/password" class="form inline">
+      <input type="text" name="password" placeholder="新密码（留空则清除）">
+      <button type="submit" class="btn">更新</button>
+    </form>
+    <p class="hint">当前：{{if .App.PasswordHash}}<b>已设置</b>{{else}}未设置（公开）{{end}}</p>
+  </section>
+
+  <section class="card danger">
+    <h3>危险区</h3>
+    <form method="post" action="/admin/apps/{{.App.ID}}/delete" onsubmit="return confirm('确定要删除应用 {{.App.Name}} 及其所有版本文件？此操作不可恢复');">
+      <button type="submit" class="btn btn-danger">删除应用及所有版本</button>
+    </form>
+  </section>
+</main>
+
+{{define "version_table"}}
+{{if .Versions}}
+<table class="data-table">
+  <thead>
+    <tr><th>版本</th><th>BundleID</th><th>大小</th><th>SHA256</th><th>上传时间</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+    {{$current := .CurrentID}}
+    {{$platform := .Platform}}
+    {{$app := .App}}
+    {{range .Versions}}
+    <tr>
+      <td>
+        {{.VersionName}} <small>({{.VersionCode}})</small>
+        {{if and $current.Valid (eq .ID $current.Int64)}}<span class="badge">当前</span>{{end}}
+      </td>
+      <td><code>{{.BundleID}}</code></td>
+      <td>{{humanBytes .FileSize}}</td>
+      <td><code title="{{.FileSHA256}}">{{shortHash .FileSHA256}}</code></td>
+      <td>{{unixToDate .UploadedAt}}</td>
+      <td>
+        {{if not (and $current.Valid (eq .ID $current.Int64))}}
+        <form method="post" action="/admin/versions/{{.ID}}/set-current" style="display:inline">
+          <button class="link-btn">设为当前</button>
+        </form>
+        {{end}}
+        <form method="post" action="/admin/versions/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('删除该版本？');">
+          <button class="link-btn danger">删除</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty">暂无 {{.Platform}} 版本</div>
+{{end}}
+{{end}}
+
+{{template "foot" .}}

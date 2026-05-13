@@ -1,0 +1,37 @@
+{{template "head" (dict "Title" "下载统计" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>{{.App.Name}} · 下载统计</h1>
+    <div class="actions">
+      <a class="btn" href="/admin/apps/{{.App.ID}}">返回应用</a>
+    </div>
+  </header>
+
+  <form method="get" class="form inline">
+    <label>统计区间（最近 N 天）
+      <input type="number" name="days" value="{{.Days}}" min="1" max="365">
+    </label>
+    <button type="submit" class="btn">刷新</button>
+  </form>
+
+  {{if .Rows}}
+  <table class="data-table">
+    <thead>
+      <tr><th>日期</th><th>平台</th><th>次数</th></tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td>{{.Day}}</td>
+        <td>{{.Platform}}</td>
+        <td>{{.Count}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty">最近 {{.Days}} 天暂无下载记录</div>
+  {{end}}
+</main>
+{{template "foot" .}}

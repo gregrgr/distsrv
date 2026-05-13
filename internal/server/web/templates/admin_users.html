@@ -1,0 +1,87 @@
+{{template "head" (dict "Title" "用户管理" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>用户管理</h1>
+    <div class="actions">
+      <a class="btn" href="/admin/">返回</a>
+    </div>
+  </header>
+
+  {{if .Notice}}<div class="alert" style="background:var(--success-soft);color:var(--success);border:1px solid var(--success)">{{.Notice}}</div>{{end}}
+  {{if .GeneratedPassword}}
+  <section class="card" style="border-color:var(--success);background:var(--success-soft)">
+    <h3>密码已生成 — 只显示一次</h3>
+    <p>请立刻把以下信息发给对应用户，关闭本页面后将无法再看到。</p>
+    <pre style="background:var(--bg-elev);border:1px solid var(--border);padding:12px;border-radius:6px;user-select:all">{{.GeneratedPassword}}</pre>
+    <p class="hint">格式为 <code>用户名|密码</code></p>
+  </section>
+  {{end}}
+
+  <section class="card">
+    <h3>创建新用户</h3>
+    <form method="post" action="/admin/users" class="form inline">
+      <input type="text" name="username" placeholder="用户名 (2-32, [a-zA-Z0-9_.-])"
+             pattern="[a-zA-Z0-9_.\-]{2,32}" required>
+      <input type="text" name="password" placeholder="密码 (留空则随机生成)" autocomplete="new-password" minlength="8">
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0">
+        <input type="checkbox" name="is_admin" value="1"> 管理员
+      </label>
+      <button type="submit" class="btn btn-primary">创建</button>
+    </form>
+    <p class="hint">普通用户能管理所有应用与版本，但不能管理其他用户。管理员能额外管理用户。</p>
+  </section>
+
+  <section class="card">
+    <h3>用户列表</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>Tokens</th><th>最近登录</th><th>创建</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        {{$u := .User}}
+        <tr>
+          <td>{{$u.ID}}</td>
+          <td><b>{{$u.Username}}</b>{{if .IsSelf}} <span class="badge">你</span>{{end}}</td>
+          <td>
+            {{if $u.IsAdmin}}<span class="badge" style="background:var(--primary-soft);color:var(--primary)">管理员</span>
+            {{else}}普通用户{{end}}
+          </td>
+          <td>
+            {{if $u.Disabled}}<span class="badge" style="background:var(--danger-soft);color:var(--danger)">已禁用</span>
+            {{else}}<span class="badge" style="background:var(--success-soft);color:var(--success)">活跃</span>{{end}}
+          </td>
+          <td>{{.TokenCount}}</td>
+          <td>{{if $u.LastLoginAt.Valid}}{{unixToDate $u.LastLoginAt.Int64}}{{else}}—{{end}}</td>
+          <td>{{unixToDate $u.CreatedAt}}</td>
+          <td>
+            {{if not .IsSelf}}
+            <form method="post" action="/admin/users/{{$u.ID}}/toggle-admin" style="display:inline">
+              <button class="link-btn">{{if $u.IsAdmin}}撤销管理员{{else}}设为管理员{{end}}</button>
+            </form>
+            ·
+            <form method="post" action="/admin/users/{{$u.ID}}/toggle-disabled" style="display:inline">
+              <button class="link-btn">{{if $u.Disabled}}启用{{else}}禁用{{end}}</button>
+            </form>
+            ·
+            <form method="post" action="/admin/users/{{$u.ID}}/reset-password" style="display:inline"
+                  onsubmit="return confirm('重置 {{$u.Username}} 的密码？');">
+              <button class="link-btn">重置密码</button>
+            </form>
+            ·
+            <form method="post" action="/admin/users/{{$u.ID}}/delete" style="display:inline"
+                  onsubmit="return confirm('删除用户 {{$u.Username}}？该用户的所有 API Token 和 session 会一并失效。');">
+              <button class="link-btn danger">删除</button>
+            </form>
+            {{else}}
+            <span class="hint">不能操作自己</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+</main>
+{{template "foot" .}}

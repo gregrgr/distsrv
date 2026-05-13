@@ -1,0 +1,33 @@
+{{template "head" (dict "Title" "UDID 列表" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>{{.App.Name}} · 已收集 UDID</h1>
+    <div class="actions">
+      <a class="btn" href="/admin/apps/{{.App.ID}}">返回应用</a>
+      <a class="btn" href="/admin/apps/{{.App.ID}}/udids?format=csv">导出 CSV</a>
+    </div>
+  </header>
+
+  {{if .UDIDs}}
+  <table class="data-table">
+    <thead>
+      <tr><th>UDID</th><th>设备</th><th>iOS 版本</th><th>序列号</th><th>采集时间</th></tr>
+    </thead>
+    <tbody>
+      {{range .UDIDs}}
+      <tr>
+        <td><code>{{.UDID}}</code></td>
+        <td>{{.Product}}</td>
+        <td>{{.Version}}</td>
+        <td>{{.Serial}}</td>
+        <td>{{unixToDate .CollectedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty">暂无 UDID 收集记录。让用户访问 <code>/d/{{.App.ShortID}}</code> 并点击"获取本机 UDID"。</div>
+  {{end}}
+</main>
+{{template "foot" .}}

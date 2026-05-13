@@ -1,0 +1,82 @@
+{{template "head" (dict "Title" "API Tokens" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>API Tokens</h1>
+    <div class="actions">
+      <a class="btn" href="/admin/">返回</a>
+    </div>
+  </header>
+
+  <p class="hint">API Token 用于命令行 / CI / Mac 端的 <code>distsrv-cli</code> 上传发布。每个 token 关联到本账号，权限等同于本账号。</p>
+
+  {{if .NewToken}}
+  <section class="card" style="border-color:var(--success);background:var(--success-soft)">
+    <h3>新 Token 已生成 — 只显示一次</h3>
+    <p>请立刻复制保存。关闭本页面后将无法再看到完整 token，只能重新创建。</p>
+    <pre style="background:var(--bg-elev);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;user-select:all">{{.NewToken}}</pre>
+    <details>
+      <summary>Mac 端配置 distsrv-cli 命令</summary>
+      <pre style="user-select:all">distsrv-cli configure --server {{.BaseURL}} --token {{.NewToken}}</pre>
+    </details>
+  </section>
+  {{end}}
+
+  <section class="card">
+    <h3>创建新 Token</h3>
+    <form method="post" action="/admin/tokens" class="form inline">
+      <input type="text" name="name" placeholder="名字（例如 Mac 工作机 / GitHub Actions）" required maxlength="64" style="min-width:280px">
+      <button type="submit" class="btn btn-primary">创建</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>现有 Tokens</h3>
+    {{if .Tokens}}
+    <table class="data-table">
+      <thead>
+        <tr><th>名字</th><th>前缀</th><th>创建时间</th><th>最近使用</th><th></th></tr>
+      </thead>
+      <tbody>
+        {{range .Tokens}}
+        <tr>
+          <td>{{.Name}}</td>
+          <td><code>{{.Prefix}}…</code></td>
+          <td>{{unixToDate .CreatedAt}}</td>
+          <td>{{if .LastUsedAt.Valid}}{{unixToDate .LastUsedAt.Int64}}{{else}}从未{{end}}</td>
+          <td>
+            <form method="post" action="/admin/tokens/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('删除 token “{{.Name}}”？所有使用此 token 的客户端将立即失效。');">
+              <button class="link-btn danger">撤销</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div class="empty">暂无 token，新建一个开始用 CLI 上传</div>
+    {{end}}
+  </section>
+
+  <section class="card">
+    <h3>使用示例</h3>
+<pre style="user-select:all"># 安装 CLI（macOS）
+curl -fsSL {{.BaseURL}}/static/mac/install.sh | bash
+
+# 配置
+distsrv-cli configure --server {{.BaseURL}} --token &lt;your-token&gt;
+
+# 列出应用
+distsrv-cli apps
+
+# 上传 ipa / apk
+distsrv-cli upload myapp ./build/MyApp.ipa
+distsrv-cli upload myapp ./build/MyApp.apk
+
+# 直接走 curl（无需 CLI）
+curl -fsSL -H "Authorization: Bearer &lt;your-token&gt;" \
+     -F "file=@./MyApp.ipa" \
+     {{.BaseURL}}/api/v1/apps/myapp/upload</pre>
+  </section>
+</main>
+{{template "foot" .}}

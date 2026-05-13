@@ -1,0 +1,52 @@
+{{template "head" (dict "Title" "管理后台" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>应用列表</h1>
+    <div class="actions">
+      <a class="btn btn-primary" href="/admin/apps/new">新建应用</a>
+      <a class="btn" href="/admin/tokens">API Tokens</a>
+      {{if .User.IsAdmin}}<a class="btn" href="/admin/users">用户管理</a>{{end}}
+    </div>
+  </header>
+
+  <p class="hint">剩余磁盘：<b>{{humanBytes .FreeBytes}}</b></p>
+
+  {{if .Apps}}
+  <table class="data-table">
+    <thead>
+      <tr><th>应用</th><th>short_id</th><th>iOS</th><th>Android</th><th>更新</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Apps}}
+      <tr>
+        <td><a href="/admin/apps/{{.App.ID}}">{{.App.Name}}</a></td>
+        <td><code>{{.App.ShortID}}</code></td>
+        <td>
+          {{if .IOSVersion}}{{.IOSVersion.VersionName}} ({{.IOSVersion.VersionCode}})<br><small>{{.IOSDownloads}} 次</small>{{else}}—{{end}}
+        </td>
+        <td>
+          {{if .AndroidVer}}{{.AndroidVer.VersionName}} ({{.AndroidVer.VersionCode}})<br><small>{{.AndroidDownls}} 次</small>{{else}}—{{end}}
+        </td>
+        <td>{{unixToDate .App.UpdatedAt}}</td>
+        <td>
+          <a href="/d/{{.App.ShortID}}" target="_blank">下载页</a>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty">暂无应用。点击"新建应用"开始。</div>
+  {{end}}
+
+  <section class="card">
+    <h3>修改我的密码</h3>
+    <form method="post" action="/admin/password" class="form inline">
+      <input type="password" name="old_password" placeholder="原密码" required>
+      <input type="password" name="new_password" placeholder="新密码 (≥8 位)" required>
+      <button type="submit" class="btn">更新</button>
+    </form>
+  </section>
+</main>
+{{template "foot" .}}
