@@ -38,8 +38,10 @@ echo "==> 仓库：$REPO"
 # ---- resolve tag ----
 if [[ "$TAG" == "latest" ]]; then
   echo "==> 查询最新 release"
-  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | grep -m1 '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+  # Read full body into a var first; piping to `grep -m1` would close stdin early
+  # and trigger SIGPIPE in curl, which combined with `-f` causes exit 23.
+  LATEST_JSON=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest")
+  TAG=$(printf '%s\n' "$LATEST_JSON" | grep '"tag_name"' | head -n1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
   [[ -n "$TAG" ]] || { echo "无法解析最新 tag"; exit 1; }
 fi
 echo "==> 版本：$TAG"
