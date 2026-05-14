@@ -177,19 +177,17 @@ func (m *Manager) SaveUpload(part *multipart.Part, appID int64, uploadedBy int64
 	}
 	v.ID = id
 
-	// Make this the current version if app has none for this platform yet.
+	// Always promote the freshly-uploaded version to "current" for this
+	// platform. Treating every upload as a publish matches the expected UX
+	// ("uploading a new build = users get the new build"); admins who need
+	// to keep an older version pinned can still flip it back manually.
+	_ = m.db.SetAppCurrentVersion(appID, id, platform)
 	switch platform {
 	case "ios":
-		if !app.CurrentIOSVersionID.Valid {
-			_ = m.db.SetAppCurrentVersion(appID, id, "ios")
-		}
 		if app.IOSBundleID == "" {
 			_ = m.db.SetAppBundleID(appID, "ios", bundleID)
 		}
 	case "android":
-		if !app.CurrentAndroidVersionID.Valid {
-			_ = m.db.SetAppCurrentVersion(appID, id, "android")
-		}
 		if app.AndroidPkg == "" {
 			_ = m.db.SetAppBundleID(appID, "android", bundleID)
 		}

@@ -153,7 +153,7 @@ step "[6/7] API + distsrv-cli 端到端验证"
 docker exec -i "$CONTAINER" bash <<'EOF'
 set -e
 # zip is not in the base image
-command -v zip >/dev/null 2>&1 || apt-get install -y -qq zip >/dev/null
+command -v zip >/dev/null 2>&1 || apt-get install -y -qq zip </dev/null >/dev/null
 SERVER=http://localhost:8080
 CK=/tmp/admin.cookies
 
@@ -274,7 +274,9 @@ grep -q "com.test.fake" /tmp/manifest.plist || { echo "  manifest 缺 bundle id"
 # producing invalid XML that iOS rejects. Make sure plist parses as XML.
 head -c 5 /tmp/manifest.plist | grep -q "^<?xml" \
   || { echo "  ✗ manifest 第一行不是 <?xml（可能被 HTML-escape 成 &lt;?xml）"; head -1 /tmp/manifest.plist; exit 1; }
-command -v python3 >/dev/null 2>&1 || apt-get install -y -qq python3 >/dev/null
+# IMPORTANT: redirect stdin from /dev/null. Without it apt-get reads from
+# the bash heredoc stdin and swallows the rest of the script.
+command -v python3 >/dev/null 2>&1 || apt-get install -y -qq python3 </dev/null >/dev/null
 python3 -c "import xml.etree.ElementTree as ET; ET.parse('/tmp/manifest.plist')" \
   || { echo "  ✗ manifest 不是合法 XML"; cat /tmp/manifest.plist; exit 1; }
 echo "  ✓ manifest /manifest/${VID}.plist 含 bundle id + 是合法 XML"
@@ -296,6 +298,41 @@ print(p.get('PayloadUUID',''))
 echo "$UUID_VAL" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' \
   || { echo "  ✗ PayloadUUID 不是合法 v4 UUID: '$UUID_VAL'"; exit 1; }
 echo "  ✓ mobileconfig 合法 XML + PayloadUUID 是 RFC 4122 v4 UUID"
+
+# Regression: uploading a *second* version should auto-promote it to "current".
+WORK2=$(mktemp -d)
+mkdir -p "$WORK2/Payload/Fake.app"
+cat > "$WORK2/Payload/Fake.app/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>com.test.fake</string>
+  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>1.0.1</string>
+  <key>CFBundleDisplayName</key><string>Fake App</string>
+  <key>CFBundleName</key><string>Fake</string>
+</dict>
+</plist>
+PLIST
+( cd "$WORK2" && zip -qr fake2.ipa Payload )
+UP2=$(distsrv-cli upload clitest "$WORK2/fake2.ipa" --json 2>&1)
+NEW_VID=$(echo "$UP2" | grep -Eo '"id":[[:space:]]*[0-9]+' | head -1 | grep -oE '[0-9]+')
+[[ -n "$NEW_VID" ]] || { echo "  ✗ 第二次上传解析不到 version id"; echo "$UP2"; exit 1; }
+echo "  第二次上传 version id = $NEW_VID"
+
+# /api/v1/apps/clitest 现在的 ios_current.id 必须等于 NEW_VID（说明被自动设为当前）
+DETAIL=$(curl -sS -H "Authorization: Bearer $TOKEN" "$SERVER/api/v1/apps/clitest")
+CUR_VID=$(echo "$DETAIL" | grep -oE '"ios_current":\{"id":[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+[[ "$CUR_VID" == "$NEW_VID" ]] \
+  || { echo "  ✗ 第二次上传未自动设为当前 (current=$CUR_VID expected=$NEW_VID)"; echo "$DETAIL"; exit 1; }
+echo "  ✓ 第二次上传自动设为 ios 当前版本"
+
+# 下载页 manifest URL 应该指向新 vid
+PAGE2=$(curl -sS "$SERVER/d/clitest")
+echo "$PAGE2" | grep -q "manifest/${NEW_VID}.plist" \
+  || { echo "  ✗ 下载页 manifest URL 没指向新版本"; echo "$PAGE2" | grep manifest; exit 1; }
+echo "  ✓ 下载页 manifest 指向新版本"
 
 echo "✓ API + CLI 全部通过"
 EOF
