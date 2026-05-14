@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	texttmpl "text/template"
 	"time"
 
@@ -39,11 +40,25 @@ type Server struct {
 	// handleMobileconfig as a fallback signer when no dedicated
 	// code-signing cert is configured.
 	autocert *autocert.Manager
-	// profileSigningCert is an Apple-issued (or other trusted)
-	// code-signing certificate loaded at startup from [server.profile_signing].
-	// When set, mobileconfig PKCS7 signing uses it instead of the LE
-	// TLS cert (which iOS 16+ does not accept for profile signing).
+	// profileSigningCert is the Apple-issued (or other trusted)
+	// code-signing certificate used to PKCS7-sign the UDID-collection
+	// mobileconfig. It can be loaded from config at boot, from a fixed
+	// data-dir location (when an admin uploaded it via the web UI),
+	// or replaced at runtime via the admin UI — hence the mutex.
+	profileSigningMu   sync.RWMutex
 	profileSigningCert *tls.Certificate
+}
+
+func (s *Server) getProfileSigningCert() *tls.Certificate {
+	s.profileSigningMu.RLock()
+	defer s.profileSigningMu.RUnlock()
+	return s.profileSigningCert
+}
+
+func (s *Server) setProfileSigningCert(c *tls.Certificate) {
+	s.profileSigningMu.Lock()
+	s.profileSigningCert = c
+	s.profileSigningMu.Unlock()
 }
 
 func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, error) {
@@ -58,18 +73,27 @@ func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, err
 	s.staticFS = sub
 
 	// Optional: code-signing cert for the UDID-collection .mobileconfig.
+	// Priority: explicit [server.profile_signing] in config.toml first
+	// (so a deployment can pin it), otherwise an admin-uploaded copy in
+	// <data_dir>/profile-signing.{crt,key}.
 	psc, err := loadProfileSigningCert(cfg.Server.ProfileSigning)
 	if err != nil {
 		return nil, fmt.Errorf("profile signing cert: %w", err)
 	}
+	if psc == nil {
+		psc, err = loadProfileSigningCertFromDataDir(cfg.Storage.DataDir)
+		if err != nil {
+			return nil, fmt.Errorf("profile signing cert (data dir): %w", err)
+		}
+	}
 	if psc != nil {
-		s.profileSigningCert = psc
+		s.setProfileSigningCert(psc)
 		if psc.Leaf != nil {
 			log.Printf("loaded profile-signing cert: subject=%q issuer=%q expires=%s",
 				psc.Leaf.Subject.CommonName, psc.Leaf.Issuer.CommonName, psc.Leaf.NotAfter.Format("2006-01-02"))
 		}
 	} else {
-		log.Printf("no [server.profile_signing] cert configured — mobileconfig will be signed with LE TLS cert (may be rejected by iOS 16+)")
+		log.Printf("no profile-signing cert configured — mobileconfig auto-collection disabled; users must use the manual UDID form")
 	}
 	return s, nil
 }
@@ -181,6 +205,11 @@ func (s *Server) routes() http.Handler {
 				r.Post("/users/{id}/toggle-disabled", s.handleAdminUsersToggleDisabled)
 				r.Post("/users/{id}/reset-password", s.handleAdminUsersResetPassword)
 				r.Post("/users/{id}/delete", s.handleAdminUsersDelete)
+
+				// iOS Profile Service code-signing cert (P12 upload).
+				r.Get("/signing-cert", s.handleAdminSigningCertGet)
+				r.Post("/signing-cert", s.handleAdminSigningCertUpload)
+				r.Post("/signing-cert/delete", s.handleAdminSigningCertDelete)
 			})
 		})
 	})

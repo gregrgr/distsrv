@@ -1,0 +1,84 @@
+{{template "head" (dict "Title" "iOS 签名证书" "Site" .Site)}}
+{{template "admin_nav" .}}
+<main class="container admin">
+  <header class="page-header">
+    <h1>iOS Profile 签名证书</h1>
+    <div class="actions">
+      <a class="btn" href="/admin/">返回</a>
+    </div>
+  </header>
+
+  {{if .Notice}}<div class="alert" style="background:var(--success-soft);color:var(--success);border:1px solid var(--success)">{{.Notice}}</div>{{end}}
+  {{if .ErrorMsg}}<div class="alert error">{{.ErrorMsg}}</div>{{end}}
+
+  <p class="hint">
+    用于 PKCS7 签名 UDID 收集 mobileconfig，iOS 16+/26 必须用 Apple Developer 颁发的
+    code-signing 证书才能接受这个描述文件。装上后下载页会显示「📥 一键获取 UDID（自动）」按钮。
+  </p>
+
+  <section class="card">
+    <h3>当前证书</h3>
+    {{if .HasCert}}
+    <table class="data-table" style="margin:0">
+      <tbody>
+        <tr><th>Subject CN</th><td><code>{{.Cert.SubjectCN}}</code></td></tr>
+        {{if .Cert.SubjectO}}<tr><th>Subject O</th><td>{{.Cert.SubjectO}}</td></tr>{{end}}
+        <tr><th>Issuer CN</th><td><code>{{.Cert.IssuerCN}}</code></td></tr>
+        {{if .Cert.IssuerO}}<tr><th>Issuer O</th><td>{{.Cert.IssuerO}}</td></tr>{{end}}
+        <tr><th>有效期</th><td>{{.Cert.NotBefore}} 至 <b>{{.Cert.NotAfter}}</b></td></tr>
+        <tr><th>序列号</th><td><code>{{.Cert.Serial}}</code></td></tr>
+        <tr><th>SHA-256 指纹</th><td><code style="word-break:break-all">{{.Cert.SHA256Hex}}</code></td></tr>
+        <tr><th>证书链长度</th><td>{{.Cert.ChainLen}}</td></tr>
+      </tbody>
+    </table>
+    <p class="hint" style="margin-top:12px">
+      Mobileconfig 自动收集已启用。如需替换，下方再上传一个新 .p12 文件即可（直接覆盖）。
+    </p>
+    {{else}}
+    <div class="empty">未配置签名证书 — 用户走<b>手动 UDID 提交</b>流程。</div>
+    {{end}}
+  </section>
+
+  <section class="card">
+    <h3>{{if .HasCert}}替换{{else}}上传{{end}}证书</h3>
+    <form method="post" action="/admin/signing-cert" enctype="multipart/form-data" class="form">
+      <label>Apple Developer .p12 文件
+        <input type="file" name="p12" accept=".p12,.pfx,application/x-pkcs12" required>
+      </label>
+      <label>导出密码（创建 .p12 时设的那个）
+        <input type="password" name="password" autocomplete="off" placeholder="输入 .p12 密码">
+      </label>
+      <button type="submit" class="btn btn-primary">上传并启用</button>
+    </form>
+    <p class="hint" style="margin-top:12px">
+      文件 + 密码不会写到磁盘明文。distsrv 解开 .p12 后只把 cert 链和私钥（PEM 格式）保存到
+      <code>{{.Site.OrgName}}</code> 服务器的数据目录（权限 0600，只 distsrv 用户能读）。
+    </p>
+  </section>
+
+  <section class="card">
+    <h3>如何在 Apple Developer 导出 .p12</h3>
+    <ol style="padding-left:20px;line-height:1.8;font-size:14px">
+      <li>Mac 打开 <b>钥匙串访问</b>（Keychain Access）</li>
+      <li>左栏选 <b>登录</b> → <b>"我的证书"</b></li>
+      <li>找到 <b>Apple Distribution</b> 或 <b>Apple Development</b> 那一行（前面三角展开，里面有对应的私钥）</li>
+      <li><b>同时选中证书 + 私钥</b>（按 Cmd 多选）</li>
+      <li>右键 → <b>"导出 2 个项目"</b> → 文件格式选 <b>Personal Information Exchange (.p12)</b></li>
+      <li>设个密码，保存为 <code>profile-signing.p12</code></li>
+      <li>把这个 .p12 上传到本页面</li>
+    </ol>
+    <p class="hint">同一份 .p12 同样可用于签 ipa；distsrv 这里只读它的 cert + 私钥来 PKCS7 签 mobileconfig。</p>
+  </section>
+
+  {{if .HasCert}}
+  <section class="card danger">
+    <h3>移除证书</h3>
+    <p class="hint">移除后下载页恢复"手动 UDID 提交"模式，所有 iOS 版本都能用，但用户多 2 步操作。</p>
+    <form method="post" action="/admin/signing-cert/delete"
+          onsubmit="return confirm('确定移除证书？mobileconfig 自动收集会立即停用。');">
+      <button type="submit" class="btn btn-danger">移除证书</button>
+    </form>
+  </section>
+  {{end}}
+</main>
+{{template "foot" .}}

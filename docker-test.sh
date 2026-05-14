@@ -389,6 +389,79 @@ echo "$SUBMIT_HTML" | grep -q 'id="pasteBtn"' \
   || { echo "  ✗ UDID submit page 缺少粘贴按钮"; exit 1; }
 echo "  ✓ UDID submit page 含剪贴板自动粘贴 UI"
 
+# ============ Profile signing cert via admin web upload ============
+# Generate a self-signed cert + key, package as PKCS12, upload it via
+# the admin /admin/signing-cert form, then assert:
+#   - GET /admin/signing-cert renders cert details
+#   - mobileconfig (after upload) is now PKCS7-signed by THIS cert
+command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl </dev/null >/dev/null
+WORK3=$(mktemp -d)
+openssl req -x509 -newkey rsa:2048 \
+  -keyout "$WORK3/k.pem" -out "$WORK3/c.pem" \
+  -days 30 -nodes -subj "/CN=distsrv test signer/O=distsrv test" >/dev/null 2>&1
+P12_PASS="testpass-$RANDOM"
+openssl pkcs12 -export -inkey "$WORK3/k.pem" -in "$WORK3/c.pem" \
+  -out "$WORK3/test.p12" -password "pass:$P12_PASS" \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 >/dev/null 2>&1
+[[ -s "$WORK3/test.p12" ]] || { echo "  ✗ openssl 生成 p12 失败"; exit 1; }
+
+# Before upload: download page should NOT include the auto button
+PAGE_BEFORE=$(curl -sS "$SERVER/d/clitest")
+if echo "$PAGE_BEFORE" | grep -q "一键获取 UDID"; then
+  echo "  ✗ 上传前下载页不该显示自动按钮"
+  exit 1
+fi
+echo "  上传前下载页正确隐藏自动按钮"
+
+# Upload via the admin form (multipart)
+curl -sS -b "$CK" -o /dev/null -w "" \
+  -X POST "$SERVER/admin/signing-cert" \
+  -F "p12=@$WORK3/test.p12" \
+  -F "password=$P12_PASS"
+
+# GET should now show cert detail
+DETAIL=$(curl -sS -b "$CK" "$SERVER/admin/signing-cert")
+echo "$DETAIL" | grep -q "distsrv test signer" \
+  || { echo "  ✗ /admin/signing-cert 没显示新证书的 subject"; echo "$DETAIL" | grep -i subject | head -3; exit 1; }
+echo "$DETAIL" | grep -q "SHA-256 指纹\|SHA-256 指纹" \
+  || echo "  (info: 没找到 SHA-256 fingerprint label — 不致命)"
+echo "  ✓ /admin/signing-cert 渲染上传后的证书信息"
+
+# Download page should now show the auto button
+PAGE_AFTER=$(curl -sS "$SERVER/d/clitest")
+echo "$PAGE_AFTER" | grep -q "一键获取 UDID" \
+  || { echo "  ✗ 上传后下载页没显示自动按钮"; exit 1; }
+echo "  ✓ 上传后下载页恢复一键自动按钮"
+
+# Fetch mobileconfig — should now be PKCS7 signed by OUR test cert
+curl -sS -o /tmp/mc-after.bin "$SERVER/mobileconfig/clitest.mobileconfig"
+# openssl will refuse to parse a non-DER-PKCS7 blob and the cert subject
+# must appear in the unwrapped chain.
+openssl pkcs7 -inform DER -in /tmp/mc-after.bin -print_certs > /tmp/mc-certs.txt 2>/dev/null \
+  || { echo "  ✗ 上传后 mobileconfig 不是 DER PKCS7"; head -c 80 /tmp/mc-after.bin | od -An -tx1 | head -2; exit 1; }
+grep -q "distsrv test signer" /tmp/mc-certs.txt \
+  || { echo "  ✗ PKCS7 里没用我们刚上传的 test signer 签名"; cat /tmp/mc-certs.txt; exit 1; }
+echo "  ✓ mobileconfig 已用刚上传的证书 PKCS7 签名"
+
+# Bad password — must fail and NOT clobber the live cert
+curl -sS -b "$CK" -o /dev/null \
+  -X POST "$SERVER/admin/signing-cert" \
+  -F "p12=@$WORK3/test.p12" -F "password=wrong"
+# Live cert should still be the test signer
+DETAIL2=$(curl -sS -b "$CK" "$SERVER/admin/signing-cert")
+echo "$DETAIL2" | grep -q "distsrv test signer" \
+  || { echo "  ✗ 错误密码后证书丢失"; exit 1; }
+echo "  ✓ 错误密码上传被拒，原证书未受影响"
+
+# Delete
+curl -sS -b "$CK" -o /dev/null -X POST "$SERVER/admin/signing-cert/delete"
+PAGE_GONE=$(curl -sS "$SERVER/d/clitest")
+echo "$PAGE_GONE" | grep -q "一键获取 UDID" \
+  && { echo "  ✗ 删除后还显示自动按钮"; exit 1; }
+echo "  ✓ 删除证书后下载页恢复手动模式"
+
+rm -rf "$WORK3"
+
 echo "✓ API + CLI 全部通过"
 EOF
 

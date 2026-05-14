@@ -22,8 +22,8 @@ import (
 //  3. Error in dev mode (no certs at all).
 func (s *Server) signMobileconfig(unsigned []byte) ([]byte, error) {
 	var tlsCert *tls.Certificate
-	if s.profileSigningCert != nil {
-		tlsCert = s.profileSigningCert
+	if c := s.getProfileSigningCert(); c != nil {
+		tlsCert = c
 	} else if s.autocert != nil {
 		chi := &tls.ClientHelloInfo{ServerName: s.cfg.Server.Domain}
 		c, err := s.autocert.GetCertificate(chi)

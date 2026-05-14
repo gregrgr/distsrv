@@ -383,6 +383,147 @@ func (s *Server) handleAdminAppUDIDs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ---- Profile signing cert (admin-only, hot-reloadable) ----
+
+func (s *Server) handleAdminSigningCertGet(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFromContext(r.Context())
+	cert := s.getProfileSigningCert()
+	info := describeCert(cert)
+
+	notice, errMsg := readSigningFlashes(w, r)
+
+	s.renderHTML(w, http.StatusOK, "admin_signing_cert.html", map[string]any{
+		"User":     u,
+		"Site":     s.cfg.Site,
+		"Cert":     info,
+		"HasCert":  cert != nil,
+		"Notice":   notice,
+		"ErrorMsg": errMsg,
+	})
+}
+
+func (s *Server) handleAdminSigningCertUpload(w http.ResponseWriter, r *http.Request) {
+	// Limit to 5 MB — Apple .p12s are typically <50 KB.
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
+	mr, err := r.MultipartReader()
+	if err != nil {
+		flashSigningErr(w, "请用 multipart/form-data 表单上传")
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+
+	var (
+		p12Data  []byte
+		password string
+		filename string
+	)
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			flashSigningErr(w, "读取上传失败："+err.Error())
+			http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+			return
+		}
+		switch part.FormName() {
+		case "p12":
+			filename = part.FileName()
+			buf, _ := io.ReadAll(io.LimitReader(part, 5<<20))
+			p12Data = buf
+		case "password":
+			buf, _ := io.ReadAll(io.LimitReader(part, 1<<10))
+			password = strings.TrimRight(string(buf), "\r\n")
+		}
+		_ = part.Close()
+	}
+
+	if len(p12Data) == 0 {
+		flashSigningErr(w, "未选择 .p12 文件")
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+
+	certPEM, keyPEM, err := decodePKCS12ToPEM(p12Data, password)
+	if err != nil {
+		flashSigningErr(w, "解析 .p12 失败："+err.Error())
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+
+	if err := saveProfileSigningPEM(s.cfg.Storage.DataDir, certPEM, keyPEM); err != nil {
+		flashSigningErr(w, "保存证书失败："+err.Error())
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+
+	// Hot-reload into the running server.
+	newCert, err := loadProfileSigningCertFromDataDir(s.cfg.Storage.DataDir)
+	if err != nil || newCert == nil {
+		flashSigningErr(w, "证书已写入但重新加载失败："+errMsg(err))
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+	s.setProfileSigningCert(newCert)
+
+	cn := ""
+	if newCert.Leaf != nil {
+		cn = newCert.Leaf.Subject.CommonName
+	}
+	flashSigningOK(w, fmt.Sprintf("✓ 已安装证书 %s （来自 %s）", cn, filename))
+	http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+}
+
+func (s *Server) handleAdminSigningCertDelete(w http.ResponseWriter, r *http.Request) {
+	if err := removeProfileSigningCert(s.cfg.Storage.DataDir); err != nil {
+		flashSigningErr(w, "删除证书文件失败："+err.Error())
+		http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+		return
+	}
+	s.setProfileSigningCert(nil)
+	flashSigningOK(w, "✓ 已移除证书，mobileconfig 自动收集已停用（用户改走手动 UDID 表单）")
+	http.Redirect(w, r, "/admin/signing-cert", http.StatusSeeOther)
+}
+
+// ---- signing-cert flash cookies ----
+
+func flashSigningOK(w http.ResponseWriter, msg string) {
+	setSigningFlash(w, "distsrv_sign_notice", msg)
+}
+func flashSigningErr(w http.ResponseWriter, msg string) {
+	setSigningFlash(w, "distsrv_sign_err", msg)
+}
+func setSigningFlash(w http.ResponseWriter, name, msg string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: name, Value: url.QueryEscape(msg),
+		Path: "/admin/signing-cert", MaxAge: 60, HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+func readSigningFlashes(w http.ResponseWriter, r *http.Request) (notice, errMsg string) {
+	if c, err := r.Cookie("distsrv_sign_notice"); err == nil && c.Value != "" {
+		if v, err := url.QueryUnescape(c.Value); err == nil {
+			notice = v
+		}
+		http.SetCookie(w, &http.Cookie{Name: "distsrv_sign_notice", Value: "", Path: "/admin/signing-cert", MaxAge: -1})
+	}
+	if c, err := r.Cookie("distsrv_sign_err"); err == nil && c.Value != "" {
+		if v, err := url.QueryUnescape(c.Value); err == nil {
+			errMsg = v
+		}
+		http.SetCookie(w, &http.Cookie{Name: "distsrv_sign_err", Value: "", Path: "/admin/signing-cert", MaxAge: -1})
+	}
+	return
+}
+
+func errMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // ---- Users (admin-only) ----
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]{2,32}$`)

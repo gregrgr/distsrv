@@ -6,7 +6,10 @@
     <div class="actions">
       <a class="btn btn-primary" href="/admin/apps/new">新建应用</a>
       <a class="btn" href="/admin/tokens">API Tokens</a>
-      {{if .User.IsAdmin}}<a class="btn" href="/admin/users">用户管理</a>{{end}}
+      {{if .User.IsAdmin}}
+      <a class="btn" href="/admin/users">用户管理</a>
+      <a class="btn" href="/admin/signing-cert">iOS 签名证书</a>
+      {{end}}
     </div>
   </header>
 

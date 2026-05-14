@@ -2,17 +2,166 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/pkcs12"
 
 	"distsrv/internal/config"
 )
+
+var _ = x509.ParseCertificate // keep crypto/x509 used by callers
+
+// profileSigningCertPaths returns the on-disk locations the admin web
+// UI writes to / reads from. PEM format (cert may carry the chain).
+func profileSigningCertPaths(dataDir string) (certPath, keyPath string) {
+	return filepath.Join(dataDir, "profile-signing.crt"),
+		filepath.Join(dataDir, "profile-signing.key")
+}
+
+// loadProfileSigningCertFromDataDir is the runtime/web-uploaded fallback
+// of loadProfileSigningCert: if no profile_signing block is in
+// config.toml, look for PEM files written by the admin UI.
+func loadProfileSigningCertFromDataDir(dataDir string) (*tls.Certificate, error) {
+	if dataDir == "" {
+		return nil, nil
+	}
+	certPath, keyPath := profileSigningCertPaths(dataDir)
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		return nil, nil
+	}
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return nil, nil
+	}
+	return loadProfileSigningCert(config.ProfileSigningConfig{
+		CertFile: certPath,
+		KeyFile:  keyPath,
+	})
+}
+
+// decodePKCS12ToPEM unpacks an Apple Developer .p12 export into a
+// CERTIFICATE chain PEM and a single PRIVATE KEY PEM, ready for
+// tls.X509KeyPair or for writing to disk.
+func decodePKCS12ToPEM(p12Data []byte, password string) (certPEM, keyPEM []byte, err error) {
+	blocks, err := pkcs12.ToPEM(p12Data, password)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decode pkcs12 (wrong password or corrupt file?): %w", err)
+	}
+	var certBuf, keyBuf bytes.Buffer
+	for _, b := range blocks {
+		pem.Encode(pickBuf(b.Type, &certBuf, &keyBuf), b)
+	}
+	if certBuf.Len() == 0 {
+		return nil, nil, errors.New("pkcs12 contains no CERTIFICATE blocks")
+	}
+	if keyBuf.Len() == 0 {
+		return nil, nil, errors.New("pkcs12 contains no PRIVATE KEY block")
+	}
+	// Sanity check: the result must form a valid keypair.
+	if _, err := tls.X509KeyPair(certBuf.Bytes(), keyBuf.Bytes()); err != nil {
+		return nil, nil, fmt.Errorf("decoded pkcs12 cert/key don't form a keypair: %w", err)
+	}
+	return certBuf.Bytes(), keyBuf.Bytes(), nil
+}
+
+// saveProfileSigningPEM writes the cert chain + key PEMs to data_dir
+// at the canonical paths, with the key locked down to mode 0600.
+func saveProfileSigningPEM(dataDir string, certPEM, keyPEM []byte) error {
+	certPath, keyPath := profileSigningCertPaths(dataDir)
+	tmpCert := certPath + ".tmp"
+	tmpKey := keyPath + ".tmp"
+	if err := os.WriteFile(tmpCert, certPEM, 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(tmpKey, keyPEM, 0o600); err != nil {
+		_ = os.Remove(tmpCert)
+		return err
+	}
+	if err := os.Rename(tmpCert, certPath); err != nil {
+		_ = os.Remove(tmpCert)
+		_ = os.Remove(tmpKey)
+		return err
+	}
+	if err := os.Rename(tmpKey, keyPath); err != nil {
+		_ = os.Remove(tmpKey)
+		return err
+	}
+	return nil
+}
+
+// removeProfileSigningCert removes the on-disk cert + key (admin clicked
+// "delete"). Idempotent: not-found is not an error.
+func removeProfileSigningCert(dataDir string) error {
+	certPath, keyPath := profileSigningCertPaths(dataDir)
+	for _, p := range []string{certPath, keyPath} {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// describeCert pulls the human-readable bits the admin UI shows.
+type ProfileSigningCertInfo struct {
+	SubjectCN string
+	IssuerCN  string
+	SubjectO  string
+	IssuerO   string
+	NotBefore string
+	NotAfter  string
+	Serial    string
+	SHA256Hex string // colon-separated thumbprint
+	ChainLen  int
+}
+
+func describeCert(cert *tls.Certificate) *ProfileSigningCertInfo {
+	if cert == nil || cert.Leaf == nil {
+		return nil
+	}
+	leaf := cert.Leaf
+	sum := sha256Sum(leaf.Raw)
+	info := &ProfileSigningCertInfo{
+		SubjectCN: leaf.Subject.CommonName,
+		IssuerCN:  leaf.Issuer.CommonName,
+		NotBefore: leaf.NotBefore.Format("2006-01-02"),
+		NotAfter:  leaf.NotAfter.Format("2006-01-02"),
+		Serial:    leaf.SerialNumber.String(),
+		SHA256Hex: hexColons(sum),
+		ChainLen:  len(cert.Certificate),
+	}
+	if len(leaf.Subject.Organization) > 0 {
+		info.SubjectO = leaf.Subject.Organization[0]
+	}
+	if len(leaf.Issuer.Organization) > 0 {
+		info.IssuerO = leaf.Issuer.Organization[0]
+	}
+	return info
+}
+
+func sha256Sum(b []byte) []byte {
+	h := sha256.New()
+	h.Write(b)
+	return h.Sum(nil)
+}
+
+func hexColons(b []byte) string {
+	const hex = "0123456789abcdef"
+	out := make([]byte, 0, len(b)*3)
+	for i, v := range b {
+		if i > 0 {
+			out = append(out, ':')
+		}
+		out = append(out, hex[v>>4], hex[v&0x0f])
+	}
+	return string(out)
+}
+
 
 // loadProfileSigningCert reads an Apple code-signing cert + private key
 // from disk so handleMobileconfig can PKCS7-sign the UDID-collection
