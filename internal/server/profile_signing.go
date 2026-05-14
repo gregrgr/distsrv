@@ -118,6 +118,16 @@ type ProfileSigningCertInfo struct {
 	Serial    string
 	SHA256Hex string // colon-separated thumbprint
 	ChainLen  int
+	// EKU shows the human-readable list of Extended Key Usages
+	// (e.g. ["Code Signing"], ["Email Protection"], or both).
+	EKU []string
+	// Suitable is true if this cert is plausibly usable for signing
+	// mobileconfig profiles (has Email Protection EKU or no EKU at all).
+	// Apple Distribution / Apple Development certs have
+	// EKU=criticalCodeSigning which iOS 16+ rejects for profile signing.
+	Suitable bool
+	// UnsuitableReason carries the explanation when Suitable is false.
+	UnsuitableReason string
 }
 
 func describeCert(cert *tls.Certificate) *ProfileSigningCertInfo {
@@ -134,6 +144,7 @@ func describeCert(cert *tls.Certificate) *ProfileSigningCertInfo {
 		Serial:    leaf.SerialNumber.String(),
 		SHA256Hex: hexColons(sum),
 		ChainLen:  len(cert.Certificate),
+		EKU:       ekuNames(leaf),
 	}
 	if len(leaf.Subject.Organization) > 0 {
 		info.SubjectO = leaf.Subject.Organization[0]
@@ -141,7 +152,74 @@ func describeCert(cert *tls.Certificate) *ProfileSigningCertInfo {
 	if len(leaf.Issuer.Organization) > 0 {
 		info.IssuerO = leaf.Issuer.Organization[0]
 	}
+	info.Suitable, info.UnsuitableReason = checkMobileconfigSuitable(leaf)
 	return info
+}
+
+// ekuNames renders the cert's ExtKeyUsage list as user-friendly names.
+func ekuNames(c *x509.Certificate) []string {
+	out := make([]string, 0, len(c.ExtKeyUsage))
+	for _, eku := range c.ExtKeyUsage {
+		switch eku {
+		case x509.ExtKeyUsageAny:
+			out = append(out, "Any")
+		case x509.ExtKeyUsageServerAuth:
+			out = append(out, "TLS Server Authentication")
+		case x509.ExtKeyUsageClientAuth:
+			out = append(out, "TLS Client Authentication")
+		case x509.ExtKeyUsageCodeSigning:
+			out = append(out, "Code Signing")
+		case x509.ExtKeyUsageEmailProtection:
+			out = append(out, "Email Protection (S/MIME)")
+		case x509.ExtKeyUsageTimeStamping:
+			out = append(out, "Time Stamping")
+		case x509.ExtKeyUsageOCSPSigning:
+			out = append(out, "OCSP Signing")
+		default:
+			out = append(out, fmt.Sprintf("ExtKeyUsage(%d)", eku))
+		}
+	}
+	return out
+}
+
+// checkMobileconfigSuitable inspects the leaf cert's EKU and returns
+// whether iOS is likely to accept it as a mobileconfig signer.
+//
+// The blocker we keep hitting in the wild: Apple Distribution certs
+// have EKU=Code Signing marked critical, and iOS 16+ refuses to use
+// such a cert for Profile-type CMS signatures — the install sheet
+// shows '无效的描述文件' / 'Invalid Profile' even after the chain
+// validates and the signature verifies in openssl.
+//
+// What works: a cert that has Email Protection in its EKU set (any
+// S/MIME signing cert — e.g. Actalis's free 1-year S/MIME, DigiCert,
+// Sectigo), or a cert with no EKU restrictions at all.
+func checkMobileconfigSuitable(leaf *x509.Certificate) (bool, string) {
+	hasCodeSigning := false
+	hasEmailProtection := false
+	for _, eku := range leaf.ExtKeyUsage {
+		switch eku {
+		case x509.ExtKeyUsageEmailProtection:
+			hasEmailProtection = true
+		case x509.ExtKeyUsageCodeSigning:
+			hasCodeSigning = true
+		case x509.ExtKeyUsageAny:
+			return true, ""
+		}
+	}
+	if hasEmailProtection {
+		return true, ""
+	}
+	// No EKU at all (some CAs leave it off) — usually fine.
+	if len(leaf.ExtKeyUsage) == 0 && len(leaf.UnknownExtKeyUsage) == 0 {
+		return true, ""
+	}
+	// Apple Distribution / Apple Development / generic code-signing
+	// certs land here.
+	if hasCodeSigning {
+		return false, "证书的 Extended Key Usage 限定为 Code Signing（典型的 Apple Distribution / Apple Development 证书）。iOS 16 及更新版本不接受此类证书签 mobileconfig — 装到 iPhone 上会显示\"无效的描述文件\"。建议改用 S/MIME (Email Protection) 证书。"
+	}
+	return false, fmt.Sprintf("证书的 Extended Key Usage 不包含 Email Protection（当前包含：%v）。iOS 可能不接受此证书签 mobileconfig。", ekuNames(leaf))
 }
 
 func sha256Sum(b []byte) []byte {

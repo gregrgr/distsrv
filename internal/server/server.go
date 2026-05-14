@@ -91,6 +91,9 @@ func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, err
 		if psc.Leaf != nil {
 			log.Printf("loaded profile-signing cert: subject=%q issuer=%q expires=%s",
 				psc.Leaf.Subject.CommonName, psc.Leaf.Issuer.CommonName, psc.Leaf.NotAfter.Format("2006-01-02"))
+			if ok, reason := checkMobileconfigSuitable(psc.Leaf); !ok {
+				log.Printf("WARNING: profile-signing cert likely won't sign mobileconfig on iOS 16+: %s See /admin/signing-cert for guidance on S/MIME certs (Actalis offers free 1-year ones).", reason)
+			}
 		}
 	} else {
 		log.Printf("no profile-signing cert configured — mobileconfig auto-collection disabled; users must use the manual UDID form")

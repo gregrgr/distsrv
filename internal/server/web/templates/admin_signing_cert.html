@@ -19,24 +19,66 @@
   <section class="card">
     <h3>当前证书</h3>
     {{if .HasCert}}
+    {{if not .Cert.Suitable}}
+    <div class="alert error" style="margin-bottom:12px">
+      <b>⚠ 此证书不适合签 iOS mobileconfig</b><br>
+      {{.Cert.UnsuitableReason}}<br>
+      <span style="font-size:13px">用户在 iPhone 上点"一键获取 UDID"会得到"无效的描述文件"错误。请到下方查看 S/MIME 证书申请指引。</span>
+    </div>
+    {{end}}
     <table class="data-table" style="margin:0">
       <tbody>
         <tr><th>Subject CN</th><td><code>{{.Cert.SubjectCN}}</code></td></tr>
         {{if .Cert.SubjectO}}<tr><th>Subject O</th><td>{{.Cert.SubjectO}}</td></tr>{{end}}
         <tr><th>Issuer CN</th><td><code>{{.Cert.IssuerCN}}</code></td></tr>
         {{if .Cert.IssuerO}}<tr><th>Issuer O</th><td>{{.Cert.IssuerO}}</td></tr>{{end}}
+        <tr><th>Extended Key Usage</th>
+          <td>
+            {{if .Cert.EKU}}
+            {{range .Cert.EKU}}<span class="badge"
+                {{if not $.Cert.Suitable}}style="background:var(--danger-soft);color:var(--danger)"{{end}}
+              >{{.}}</span> {{end}}
+            {{else}}(无限制){{end}}
+          </td>
+        </tr>
         <tr><th>有效期</th><td>{{.Cert.NotBefore}} 至 <b>{{.Cert.NotAfter}}</b></td></tr>
         <tr><th>序列号</th><td><code>{{.Cert.Serial}}</code></td></tr>
         <tr><th>SHA-256 指纹</th><td><code style="word-break:break-all">{{.Cert.SHA256Hex}}</code></td></tr>
-        <tr><th>证书链长度</th><td>{{.Cert.ChainLen}}</td></tr>
+        <tr><th>证书链长度</th><td>{{.Cert.ChainLen}} {{if eq .Cert.ChainLen 1}}（叶子证书，无中间 CA — Apple 系列会自动补 WWDR 中间证书）{{else}}（含中间 CA）{{end}}</td></tr>
       </tbody>
     </table>
     <p class="hint" style="margin-top:12px">
-      Mobileconfig 自动收集已启用。如需替换，下方再上传一个新 .p12 文件即可（直接覆盖）。
+      {{if .Cert.Suitable}}✓ 此证书适合签 mobileconfig，自动收集 UDID 可用。{{else}}如需替换，下方再上传一个新 .p12 文件即可（直接覆盖）。{{end}}
     </p>
     {{else}}
     <div class="empty">未配置签名证书 — 用户走<b>手动 UDID 提交</b>流程。</div>
     {{end}}
+  </section>
+
+  <section class="card" style="border-color:var(--primary);background:var(--primary-soft)">
+    <h3>iOS 16+ 哪种证书才能签 mobileconfig？</h3>
+    <p>iOS 严格要求签名证书的 Extended Key Usage 包含 <b>Email Protection (S/MIME)</b>。其它常见类型会被拒：</p>
+    <table class="data-table" style="margin:8px 0;background:var(--bg-elev)">
+      <thead><tr><th>证书类型</th><th>EKU</th><th>能签 mobileconfig？</th></tr></thead>
+      <tbody>
+        <tr><td><b>S/MIME (Email Protection)</b></td><td>Email Protection</td><td style="color:var(--success)"><b>✓ 是</b></td></tr>
+        <tr><td>Apple Distribution / Development</td><td>Code Signing (critical)</td><td style="color:var(--danger)">✗ 否</td></tr>
+        <tr><td>Let's Encrypt / 普通 TLS 证书</td><td>Server Auth + Client Auth</td><td style="color:var(--danger)">✗ 否</td></tr>
+        <tr><td>无 EKU 限制的证书</td><td>(无)</td><td style="color:var(--success)">✓ 可能</td></tr>
+      </tbody>
+    </table>
+    <h3 style="margin-top:16px">免费 S/MIME 证书来源</h3>
+    <ul style="padding-left:20px;line-height:1.8">
+      <li><b>Actalis</b>（推荐，意大利 CA，全球受信）
+        <ul style="padding-left:18px;font-size:13px">
+          <li><a href="https://extrassl.actalis.it/portal/uapub/freemail?lang=en" target="_blank" rel="noopener">申请页面</a> — 提交邮箱 → 收激活码 → 下载 .p12 + 拿密码</li>
+          <li>免费 1 年期；到期前再申请一份替换</li>
+          <li>过程不到 5 分钟，无需身份验证</li>
+        </ul>
+      </li>
+      <li><b>GlobalSign / Sectigo / DigiCert</b>（付费，约 $15-30 / 年）— 用于正式生产</li>
+    </ul>
+    <p class="hint" style="margin-top:8px">收到 .p12 后回到本页面上传，注意 Actalis 用邮件发的密码 → 输到下方的"导出密码"字段。</p>
   </section>
 
   <section class="card">
@@ -57,17 +99,17 @@
   </section>
 
   <section class="card">
-    <h3>如何在 Apple Developer 导出 .p12</h3>
+    <h3>Mac 上把 S/MIME 证书导出成 .p12</h3>
+    <p class="hint">Actalis 邮件附件本身就是 .p12，可以直接上传。如果是从其它 CA 拿到 PEM/cer + key 文件，或者你想从 macOS 钥匙串里转格式，按以下步骤：</p>
     <ol style="padding-left:20px;line-height:1.8;font-size:14px">
       <li>Mac 打开 <b>钥匙串访问</b>（Keychain Access）</li>
+      <li>双击 .cer 或 .pem 文件让证书安装到钥匙串</li>
       <li>左栏选 <b>登录</b> → <b>"我的证书"</b></li>
-      <li>找到 <b>Apple Distribution</b> 或 <b>Apple Development</b> 那一行（前面三角展开，里面有对应的私钥）</li>
-      <li><b>同时选中证书 + 私钥</b>（按 Cmd 多选）</li>
+      <li>找到刚装的 S/MIME 证书，<b>同时选中证书 + 私钥</b>（按 Cmd 多选）</li>
       <li>右键 → <b>"导出 2 个项目"</b> → 文件格式选 <b>Personal Information Exchange (.p12)</b></li>
       <li>设个密码，保存为 <code>profile-signing.p12</code></li>
       <li>把这个 .p12 上传到本页面</li>
     </ol>
-    <p class="hint">同一份 .p12 同样可用于签 ipa；distsrv 这里只读它的 cert + 私钥来 PKCS7 签 mobileconfig。</p>
   </section>
 
   {{if .HasCert}}

@@ -460,6 +460,43 @@ echo "$PAGE_GONE" | grep -q "一键获取 UDID" \
   && { echo "  ✗ 删除后还显示自动按钮"; exit 1; }
 echo "  ✓ 删除证书后下载页恢复手动模式"
 
+# Suitability check: upload a cert whose EKU is codeSigning (mimics
+# Apple Distribution) and assert the admin UI marks it Unsuitable.
+WORK4=$(mktemp -d)
+cat > "$WORK4/openssl.cnf" <<'OSSLCFG'
+[req]
+distinguished_name = dn
+req_extensions = exts
+prompt = no
+[dn]
+CN = distsrv code-signing only
+O  = distsrv test
+[exts]
+extendedKeyUsage = critical, codeSigning
+keyUsage         = critical, digitalSignature
+OSSLCFG
+openssl req -x509 -newkey rsa:2048 \
+  -keyout "$WORK4/k.pem" -out "$WORK4/c.pem" \
+  -days 30 -nodes -config "$WORK4/openssl.cnf" \
+  -extensions exts >/dev/null 2>&1
+P12_PASS="cs-$RANDOM"
+openssl pkcs12 -export -inkey "$WORK4/k.pem" -in "$WORK4/c.pem" \
+  -out "$WORK4/cs.p12" -password "pass:$P12_PASS" \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 >/dev/null 2>&1
+curl -sS -b "$CK" -o /dev/null \
+  -X POST "$SERVER/admin/signing-cert" \
+  -F "p12=@$WORK4/cs.p12" -F "password=$P12_PASS"
+SUITABILITY=$(curl -sS -b "$CK" "$SERVER/admin/signing-cert")
+echo "$SUITABILITY" | grep -q "此证书不适合签 iOS mobileconfig" \
+  || { echo "  ✗ EKU codeSigning 证书上传后没显示 Unsuitable 警告"; echo "$SUITABILITY" | grep -A2 'EKU\|Unsuitable\|不适合' | head -10; exit 1; }
+echo "$SUITABILITY" | grep -q "Code Signing" \
+  || { echo "  ✗ UI 未显示 EKU 'Code Signing'"; exit 1; }
+echo "  ✓ EKU=Code Signing 证书触发 Unsuitable 警告 + Actalis 推荐 UI"
+
+# Cleanup: remove the unsuitable cert for next runs
+curl -sS -b "$CK" -o /dev/null -X POST "$SERVER/admin/signing-cert/delete"
+rm -rf "$WORK4"
+
 rm -rf "$WORK3"
 
 # Home page: each app is a single entry link to /d/<short>; the actual
