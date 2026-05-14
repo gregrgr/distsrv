@@ -270,7 +270,14 @@ VID=$(echo "$APP_DETAIL" | sed -n 's/.*"ios_current":{"id":\([0-9]*\).*/\1/p')
 MANIFEST_CODE=$(curl -sS -X GET -o /tmp/manifest.plist -w "%{http_code}" "$SERVER/manifest/${VID}.plist")
 [[ "$MANIFEST_CODE" == "200" ]] || { echo "  manifest $VID -> $MANIFEST_CODE"; cat /tmp/manifest.plist; exit 1; }
 grep -q "com.test.fake" /tmp/manifest.plist || { echo "  manifest 缺 bundle id"; cat /tmp/manifest.plist; exit 1; }
-echo "  ✓ manifest /manifest/${VID}.plist 含 bundle id"
+# Regression guard: html/template would silently escape "<?xml ..." to "&lt;?xml ...",
+# producing invalid XML that iOS rejects. Make sure plist parses as XML.
+head -c 5 /tmp/manifest.plist | grep -q "^<?xml" \
+  || { echo "  ✗ manifest 第一行不是 <?xml（可能被 HTML-escape 成 &lt;?xml）"; head -1 /tmp/manifest.plist; exit 1; }
+command -v python3 >/dev/null 2>&1 || apt-get install -y -qq python3 >/dev/null
+python3 -c "import xml.etree.ElementTree as ET; ET.parse('/tmp/manifest.plist')" \
+  || { echo "  ✗ manifest 不是合法 XML"; cat /tmp/manifest.plist; exit 1; }
+echo "  ✓ manifest /manifest/${VID}.plist 含 bundle id + 是合法 XML"
 
 echo "✓ API + CLI 全部通过"
 EOF

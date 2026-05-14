@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/xml"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	texttmpl "text/template"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -26,8 +29,12 @@ type Server struct {
 	db        *db.DB
 	storage   *storage.Manager
 	templates *template.Template
-	plist     *template.Template
-	staticFS  fs.FS
+	// plist templates are XML, not HTML; using html/template silently
+	// HTML-escapes the leading "<?xml ?>" processing instruction, which
+	// makes iOS reject the manifest. Use text/template instead and rely
+	// on the `xml` template func for value escaping.
+	plist    *texttmpl.Template
+	staticFS fs.FS
 }
 
 func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, error) {
@@ -57,12 +64,24 @@ func (s *Server) loadTemplates() error {
 	}
 	s.templates = t
 
-	p, err := template.New("").ParseFS(webFS, "web/plist/*")
+	plistFuncs := texttmpl.FuncMap{
+		"xml": xmlEscapeStr,
+	}
+	p, err := texttmpl.New("").Funcs(plistFuncs).ParseFS(webFS, "web/plist/*")
 	if err != nil {
 		return fmt.Errorf("parse plist templates: %w", err)
 	}
 	s.plist = p
 	return nil
+}
+
+// xmlEscapeStr escapes a string for safe inclusion as XML element text.
+// Uses encoding/xml.EscapeText, which emits the canonical XML 1.0 entities
+// (&amp; &lt; &gt; &quot; &apos; and a few control-char escapes).
+func xmlEscapeStr(s string) string {
+	var b bytes.Buffer
+	_ = xml.EscapeText(&b, []byte(s))
+	return b.String()
 }
 
 func (s *Server) routes() http.Handler {

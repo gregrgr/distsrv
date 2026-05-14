@@ -11,7 +11,7 @@
                     <key>kind</key>
                     <string>software-package</string>
                     <key>url</key>
-                    <string>{{.IPAUrl}}</string>
+                    <string>{{xml .IPAUrl}}</string>
                 </dict>
                 {{if .IconUrl}}
                 <dict>
@@ -20,7 +20,7 @@
                     <key>needs-shine</key>
                     <false/>
                     <key>url</key>
-                    <string>{{.IconUrl}}</string>
+                    <string>{{xml .IconUrl}}</string>
                 </dict>
                 <dict>
                     <key>kind</key>
@@ -28,20 +28,20 @@
                     <key>needs-shine</key>
                     <false/>
                     <key>url</key>
-                    <string>{{.IconUrl}}</string>
+                    <string>{{xml .IconUrl}}</string>
                 </dict>
                 {{end}}
             </array>
             <key>metadata</key>
             <dict>
                 <key>bundle-identifier</key>
-                <string>{{.BundleID}}</string>
+                <string>{{xml .BundleID}}</string>
                 <key>bundle-version</key>
-                <string>{{.BundleVersion}}</string>
+                <string>{{xml .BundleVersion}}</string>
                 <key>kind</key>
                 <string>software</string>
                 <key>title</key>
-                <string>{{.Title}}</string>
+                <string>{{xml .Title}}</string>
             </dict>
         </dict>
     </array>

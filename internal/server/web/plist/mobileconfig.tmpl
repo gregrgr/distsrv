@@ -5,7 +5,7 @@
     <key>PayloadContent</key>
     <dict>
         <key>URL</key>
-        <string>https://{{.Host}}/udid-callback?app={{.AppShortID}}</string>
+        <string>https://{{xml .Host}}/udid-callback?app={{xml .AppShortID}}</string>
         <key>DeviceAttributes</key>
         <array>
             <string>UDID</string>
@@ -17,15 +17,15 @@
         </array>
     </dict>
     <key>PayloadOrganization</key>
-    <string>{{.OrgName}}</string>
+    <string>{{xml .OrgName}}</string>
     <key>PayloadDisplayName</key>
-    <string>{{.AppName}} UDID 收集</string>
+    <string>{{xml .AppName}} UDID 收集</string>
     <key>PayloadVersion</key>
     <integer>1</integer>
     <key>PayloadUUID</key>
-    <string>{{.PayloadUUID}}</string>
+    <string>{{xml .PayloadUUID}}</string>
     <key>PayloadIdentifier</key>
-    <string>com.{{.OrgSlug}}.udid.{{.AppShortID}}</string>
+    <string>com.{{xml .OrgSlug}}.udid.{{xml .AppShortID}}</string>
     <key>PayloadDescription</key>
     <string>本配置文件用于获取设备 UDID 并发送给分发服务器，便于管理员将本设备加入测试名单。安装后请到「设置 → 通用 → VPN 与设备管理」批准描述文件。</string>
     <key>PayloadType</key>
