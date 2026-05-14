@@ -300,14 +300,21 @@ func (s *Server) handleMobileconfig(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	uuid, _ := auth.RandomToken(16)
+	// iOS requires PayloadUUID to be a real RFC 4122 UUID v4 (with dashes).
+	// A plain hex token here makes the device reject the profile as
+	// "无效的描述文件" / "Invalid profile".
+	uuid, err := auth.RandomUUIDv4()
+	if err != nil {
+		http.Error(w, "uuid error", http.StatusInternalServerError)
+		return
+	}
 	data := map[string]any{
-		"Host":         hostOnly(s.cfg.Server.Domain, s.cfg.Server.DevAddr, s.cfg.Server.DevMode),
-		"AppShortID":   shortID,
-		"AppName":      app.Name,
-		"OrgName":      s.cfg.Site.OrgName,
-		"OrgSlug":      s.cfg.Site.OrgSlug,
-		"PayloadUUID":  uuid,
+		"Host":        hostOnly(s.cfg.Server.Domain, s.cfg.Server.DevAddr, s.cfg.Server.DevMode),
+		"AppShortID":  shortID,
+		"AppName":     app.Name,
+		"OrgName":     s.cfg.Site.OrgName,
+		"OrgSlug":     s.cfg.Site.OrgSlug,
+		"PayloadUUID": uuid,
 	}
 	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="udid.mobileconfig"`)

@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/xml"
+	"regexp"
 	"strings"
 	"testing"
 	texttmpl "text/template"
@@ -105,6 +106,37 @@ func TestMobileconfigRendersValidXML(t *testing.T) {
 			}
 			t.Fatalf("mobileconfig is not valid XML: %v\n---\n%s", err, out)
 		}
+	}
+}
+
+// TestMobileconfigPayloadUUIDIsValidRFC4122 — regression: iOS rejects a
+// .mobileconfig whose PayloadUUID is not an RFC 4122 UUID with dashes.
+// We don't render via the handler here (would need an httptest server);
+// instead we re-use auth.RandomUUIDv4 and pipe it through the template.
+func TestMobileconfigPayloadUUIDIsValidRFC4122(t *testing.T) {
+	plistFuncs := texttmpl.FuncMap{"xml": xmlEscapeStr}
+	tpl, err := texttmpl.New("").Funcs(plistFuncs).ParseFS(webFS, "web/plist/*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	uu := "1d2e3f40-aaaa-4bbb-9ccc-1234567890ab" // representative v4
+	var buf bytes.Buffer
+	_ = tpl.ExecuteTemplate(&buf, "mobileconfig.tmpl", map[string]any{
+		"Host": "h", "AppShortID": "a", "AppName": "n",
+		"OrgName": "o", "OrgSlug": "s", "PayloadUUID": uu,
+	})
+	out := buf.String()
+	want := "<string>" + uu + "</string>"
+	if !strings.Contains(out, want) {
+		t.Fatalf("mobileconfig missing PayloadUUID value as-is; expected %q", want)
+	}
+	// Negative: a hex blob without dashes (the historical bug) shouldn't slip past
+	// a basic UUID format check.
+	bad := "d9021223b1b393e77644783b6f01691a"
+	matched, _ := regexp.MatchString(
+		`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, bad)
+	if matched {
+		t.Fatal("regression sentinel: regex falsely accepted a non-dashed hex blob")
 	}
 }
 

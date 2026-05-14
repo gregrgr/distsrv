@@ -279,6 +279,24 @@ python3 -c "import xml.etree.ElementTree as ET; ET.parse('/tmp/manifest.plist')"
   || { echo "  ✗ manifest 不是合法 XML"; cat /tmp/manifest.plist; exit 1; }
 echo "  ✓ manifest /manifest/${VID}.plist 含 bundle id + 是合法 XML"
 
+# UDID-collection mobileconfig
+curl -sS -o /tmp/cli.mobileconfig -w "  mobileconfig fetch -> %{http_code}\n" \
+  "$SERVER/mobileconfig/clitest.mobileconfig"
+head -c 5 /tmp/cli.mobileconfig | grep -q "^<?xml" \
+  || { echo "  ✗ mobileconfig 第一行不是 <?xml"; head -1 /tmp/cli.mobileconfig; exit 1; }
+python3 -c "import xml.etree.ElementTree as ET; ET.parse('/tmp/cli.mobileconfig')" \
+  || { echo "  ✗ mobileconfig 不是合法 XML"; cat /tmp/cli.mobileconfig; exit 1; }
+# PayloadUUID 必须是 RFC 4122 v4 UUID（带短横线，36 字符）
+UUID_VAL=$(python3 -c "
+import plistlib
+with open('/tmp/cli.mobileconfig','rb') as f:
+    p = plistlib.load(f)
+print(p.get('PayloadUUID',''))
+")
+echo "$UUID_VAL" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' \
+  || { echo "  ✗ PayloadUUID 不是合法 v4 UUID: '$UUID_VAL'"; exit 1; }
+echo "  ✓ mobileconfig 合法 XML + PayloadUUID 是 RFC 4122 v4 UUID"
+
 echo "✓ API + CLI 全部通过"
 EOF
 
