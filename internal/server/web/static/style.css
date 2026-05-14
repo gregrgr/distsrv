@@ -329,6 +329,11 @@ pre {
 }
 
 /* ===== Download page ===== */
+/* Narrower container than the global 960px — the download page is
+   designed to be read on a phone screen even when seen on desktop. */
+main.container.download {
+  max-width: 540px;
+}
 .download .app-header {
   text-align: center;
   margin: 40px 0 32px;
@@ -369,16 +374,18 @@ pre {
 }
 
 .download .versions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 16px;
-  grid-template-columns: 1fr;
   margin: 24px 0;
-}
-@media (min-width: 720px) {
-  .download .versions { grid-template-columns: 1fr 1fr; }
 }
 
 .platform-card {
+  flex: 1 1 280px;
+  /* Cap so that on wide viewports a single card stays a comfortable
+     width and a pair of cards lands at the same width as one. */
+  max-width: 360px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -451,13 +458,15 @@ pre {
 
 .qr {
   text-align: center;
-  margin: 40px auto;
-  padding: 24px;
+  margin: 32px auto 24px;
+  padding: 20px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  max-width: 320px;
+  max-width: 260px;
 }
+.qr h3 { font-size: 13px; margin: 0 0 8px; }
+.qr img { width: 180px; height: 180px; }
 .qr h3 { color: var(--fg-soft); font-weight: 500; }
 .qr img {
   border: 1px solid var(--border);
