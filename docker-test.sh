@@ -244,7 +244,17 @@ APP_DETAIL=$(curl -sS -H "Authorization: Bearer $TOKEN" "$SERVER/api/v1/apps/cli
 echo "$APP_DETAIL" | grep -q '"version_name":"1.0.0"' || { echo "$APP_DETAIL"; exit 1; }
 PAGE=$(curl -sS "$SERVER/d/clitest")
 echo "$PAGE" | grep -q "1.0.0" || { echo "$PAGE" | head -50; exit 1; }
-echo "  ✓ 下载页显示新版本"
+# Regression guard: html/template must NOT replace itms-services:// with #ZgotmplZ
+if echo "$PAGE" | grep -q "#ZgotmplZ"; then
+  echo "  ✗ html/template 把 itms-services URL 替换成 #ZgotmplZ — iOS 安装按钮会变死链"
+  echo "$PAGE" | grep -A1 -B1 "ZgotmplZ"
+  exit 1
+fi
+echo "$PAGE" | grep -q "itms-services://?action=download-manifest" \
+  || { echo "  ✗ 下载页里没有 itms-services:// 链接"; echo "$PAGE" | grep -i itms; exit 1; }
+echo "$PAGE" | grep -q 'src="data:image/png;base64,' \
+  || { echo "  ✗ 二维码 data URL 没出现（被 html/template 过滤了？）"; echo "$PAGE" | grep -i 'qr\|data:'; exit 1; }
+echo "  ✓ 下载页显示新版本 + itms-services URL + 二维码 data URL 完整"
 
 # 12. 上传到不存在的 app -> 404
 CODE=$(curl -sS -o /dev/null -w "%{http_code}" \

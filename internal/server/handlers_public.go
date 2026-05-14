@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
@@ -36,11 +37,14 @@ type downloadPageData struct {
 	IOSVersion      *db.Version
 	AndroidVersion  *db.Version
 	PlatformHint    string // ios | android | both
-	ITMSURL         string
+	// ITMSURL and QRDataURL must be template.URL so html/template lets
+	// the non-standard itms-services:// and data:image/... schemes
+	// through (otherwise they get rewritten to "#ZgotmplZ").
+	ITMSURL         template.URL
 	APKURL          string
 	AppIconURL      string
 	MobileconfigURL string
-	QRDataURL       string
+	QRDataURL       template.URL
 	Site            any
 	NeedsPassword   bool
 	PasswordError   string
@@ -74,7 +78,7 @@ func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
 		if v, err := s.db.GetVersion(app.CurrentIOSVersionID.Int64); err == nil {
 			data.IOSVersion = v
 			manifestURL := fmt.Sprintf("%s/manifest/%d.plist", s.baseURL(), v.ID)
-			data.ITMSURL = "itms-services://?action=download-manifest&url=" + manifestURL
+			data.ITMSURL = template.URL("itms-services://?action=download-manifest&url=" + manifestURL)
 			if v.IconPath != "" && data.AppIconURL == "" {
 				data.AppIconURL = fmt.Sprintf("%s/icon/%d.png", s.baseURL(), v.ID)
 			}
@@ -103,7 +107,7 @@ func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
 	// Embed QR as data URL
 	pageURL := fmt.Sprintf("%s/d/%s", s.baseURL(), shortID)
 	if png, err := qrcode.Encode(pageURL, qrcode.Medium, 256); err == nil {
-		data.QRDataURL = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+		data.QRDataURL = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
 	}
 
 	s.renderHTML(w, http.StatusOK, "download.html", data)
