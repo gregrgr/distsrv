@@ -102,6 +102,8 @@ func (s *Server) routes() http.Handler {
 		r.Get("/", s.handleDownloadPage)
 		r.Post("/auth", s.handleDownloadAuth)
 		r.Get("/qr.png", s.handleDownloadQR)
+		r.Get("/udid", s.handleUDIDSubmitGet)
+		r.Post("/udid", s.handleUDIDSubmitPost)
 	})
 	r.Get("/manifest/{vid}.plist", s.handleManifest)
 	r.Get("/file/{vid}/{filename}", s.handleFileDownload)

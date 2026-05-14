@@ -365,6 +365,22 @@ echo "$BANNER" | grep -q "udid-banner" \
   || { echo "  ✗ udid-banner class 没渲染"; exit 1; }
 echo "  ✓ 下载页 ?udid=... 显示 UDID banner"
 
+# Manual UDID submission flow (preferred path on modern iOS where the
+# Apple Profile Service mobileconfig path is blocked).
+HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$SERVER/d/clitest/udid")
+[[ "$HTTP_CODE" == "200" ]] || { echo "  ✗ GET /d/clitest/udid -> $HTTP_CODE"; exit 1; }
+# Submit a valid UDID
+LOCATION=$(curl -sS -o /dev/null -w "%{redirect_url}" \
+  -X POST "$SERVER/d/clitest/udid" \
+  --data-urlencode "udid=00008140-001A22D21E2B001C")
+echo "$LOCATION" | grep -q "/d/clitest?udid=" \
+  || { echo "  ✗ submit redirect not on /d/clitest?udid=..., got: $LOCATION"; exit 1; }
+# Bad UDID is rejected
+HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+  -X POST "$SERVER/d/clitest/udid" --data-urlencode "udid=not-a-udid")
+[[ "$HTTP_CODE" == "400" ]] || { echo "  ✗ bad UDID should be 400, got $HTTP_CODE"; exit 1; }
+echo "  ✓ 手动 UDID 提交：表单 200 / 合法提交 redirect / 非法 400"
+
 echo "✓ API + CLI 全部通过"
 EOF
 

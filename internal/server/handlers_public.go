@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -299,6 +300,50 @@ func (s *Server) handleIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, abs)
+}
+
+// udidRe matches both modern iPhones (XR+, 8hex-16hex with dash) and
+// older devices (40hex without dash).
+var udidRe = regexp.MustCompile(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{16}|[0-9a-fA-F]{40})$`)
+
+func (s *Server) handleUDIDSubmitGet(w http.ResponseWriter, r *http.Request) {
+	shortID := chi.URLParam(r, "shortID")
+	app, err := s.db.GetAppByShortID(shortID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderHTML(w, http.StatusOK, "udid_submit.html", map[string]any{
+		"App":  app,
+		"Site": s.cfg.Site,
+	})
+}
+
+func (s *Server) handleUDIDSubmitPost(w http.ResponseWriter, r *http.Request) {
+	shortID := chi.URLParam(r, "shortID")
+	app, err := s.db.GetAppByShortID(shortID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	udidIn := strings.TrimSpace(r.FormValue("udid"))
+	if !udidRe.MatchString(udidIn) {
+		s.renderHTML(w, http.StatusBadRequest, "udid_submit.html", map[string]any{
+			"App":   app,
+			"Site":  s.cfg.Site,
+			"Error": "UDID 格式不对（应是 8-16 hex 带短横线，或 40 字符 hex）",
+		})
+		return
+	}
+	_ = s.db.UpsertUDID(&db.UDID{
+		AppID: app.ID,
+		UDID:  udidIn,
+	})
+	http.Redirect(w, r, "/d/"+shortID+"?udid="+url.QueryEscape(udidIn), http.StatusSeeOther)
 }
 
 func (s *Server) handleMobileconfig(w http.ResponseWriter, r *http.Request) {

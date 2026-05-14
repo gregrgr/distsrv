@@ -35,10 +35,11 @@
         <summary>安装失败？UDID 收集 / 信任设置</summary>
         <ul>
           <li>必须使用 <b>Safari 浏览器</b>打开本页，Chrome 无法触发安装。</li>
-          <li>若提示"无法安装"，多半是设备 UDID 还未加入开发者证书。请下载下方描述文件提交 UDID。</li>
-          <li>安装后首次打开前请到「设置 → 通用 → VPN 与设备管理」信任开发者。</li>
+          <li>若提示"无法安装"，多半是设备 UDID 还未加入开发者证书。</li>
+          <li>安装成功但启动失败：设置 → 通用 → VPN 与设备管理 → 信任开发者。</li>
+          <li>iOS 26+ 启动时若提示开发者模式：设置 → 隐私与安全性 → 开发者模式 → 开。</li>
         </ul>
-        <a class="btn btn-secondary" href="{{.MobileconfigURL}}">获取本机 UDID</a>
+        <a class="btn btn-secondary" href="/d/{{.App.ShortID}}/udid">提交我的 UDID 给开发者</a>
       </details>
     </div>
     {{end}}

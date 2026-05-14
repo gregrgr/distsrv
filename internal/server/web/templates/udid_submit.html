@@ -1,0 +1,45 @@
+{{template "head" (dict "Title" "提交本机 UDID" "Site" .Site)}}
+<main class="container narrow">
+  <header class="app-header" style="margin: 32px 0 24px">
+    <h1 style="font-size: 22px; text-align: center; width: 100%">{{.App.Name}} · 提交本机 UDID</h1>
+    <p class="desc" style="text-align: center">把你 iPhone 的 UDID 发给开发者，加进 Provisioning Profile 后就能正常安装应用。</p>
+  </header>
+
+  <section class="card">
+    <h3>方法 1：iOS 18 / iOS 17 设置里查（最快）</h3>
+    <ol style="padding-left: 20px; line-height: 1.8; font-size: 14px">
+      <li>打开 <b>设置</b> → <b>通用</b> → <b>关于本机</b></li>
+      <li>找到 <b>序列号</b> 那一行，<b>长按</b>它</li>
+      <li>弹出菜单里选 <b>"复制 UDID"</b>（不是"复制序列号"）</li>
+      <li>回到本页面，粘贴到下面输入框</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h3>方法 2：用 Mac Finder（旧版 iOS）</h3>
+    <ol style="padding-left: 20px; line-height: 1.8; font-size: 14px">
+      <li>iPhone 用线连 Mac</li>
+      <li>打开 <b>Finder</b>，左栏选你的 iPhone</li>
+      <li>顶部信息条点击 <b>"型号 / 容量 / 序列号"</b> 那一行会循环切换，切到 <b>UDID</b></li>
+      <li>右键 → <b>拷贝</b></li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h3>提交 UDID</h3>
+    {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+    <form method="post" action="/d/{{.App.ShortID}}/udid" class="form">
+      <label>本机 UDID
+        <input type="text" name="udid"
+               placeholder="例如 00008140-001A22D21E2B001C 或 40 字符 hex"
+               pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{16}|[0-9a-fA-F]{40}"
+               required autofocus
+               autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="submit" class="btn btn-primary">提交</button>
+      <a class="btn" href="/d/{{.App.ShortID}}">取消</a>
+    </form>
+    <p class="hint" style="margin-top: 16px">UDID 是设备唯一标识符，提交后会写入分发服务器的设备列表，开发者就能看到。</p>
+  </section>
+</main>
+{{template "foot" .}}
