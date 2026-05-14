@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -316,9 +317,32 @@ func (s *Server) handleMobileconfig(w http.ResponseWriter, r *http.Request) {
 		"OrgSlug":     s.cfg.Site.OrgSlug,
 		"PayloadUUID": uuid,
 	}
-	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
+
+	// Render the unsigned XML to a buffer first.
+	var buf bytes.Buffer
+	if err := s.plist.ExecuteTemplate(&buf, "mobileconfig.tmpl", data); err != nil {
+		log.Printf("mobileconfig render: %v", err)
+		http.Error(w, "render error", http.StatusInternalServerError)
+		return
+	}
+
+	// iOS 16+ rejects unsigned PayloadType=Profile Service profiles as
+	// "无效的描述文件" — sign with the live LE cert so the device sees
+	// a trusted PKCS7 signature.
 	w.Header().Set("Content-Disposition", `attachment; filename="udid.mobileconfig"`)
-	s.renderPlist(w, "mobileconfig.tmpl", data, "application/x-apple-aspen-config; charset=utf-8")
+	if s.autocert != nil {
+		signed, err := s.signMobileconfig(buf.Bytes())
+		if err != nil {
+			log.Printf("mobileconfig sign: %v — falling back to unsigned", err)
+		} else {
+			w.Header().Set("Content-Type", "application/x-apple-aspen-config")
+			_, _ = w.Write(signed)
+			return
+		}
+	}
+	// Fallback (dev_mode or sign failure): serve unsigned XML.
+	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (s *Server) handleUDIDCallback(w http.ResponseWriter, r *http.Request) {

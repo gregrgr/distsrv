@@ -35,6 +35,11 @@ type Server struct {
 	// on the `xml` template func for value escaping.
 	plist    *texttmpl.Template
 	staticFS fs.FS
+	// autocert is the ACME manager used in production. It's also used by
+	// handleMobileconfig to fetch the live TLS cert + private key so the
+	// .mobileconfig can be CMS-signed (iOS 16+ requires PKCS7 signature
+	// for PayloadType=Profile Service).
+	autocert *autocert.Manager
 }
 
 func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, error) {
@@ -187,6 +192,7 @@ func (s *Server) Run(ctx context.Context) error {
 		Email:      s.cfg.Server.ACMEEmail,
 		Client:     &acme.Client{DirectoryURL: acme.LetsEncryptURL},
 	}
+	s.autocert = m
 
 	tlsCfg := m.TLSConfig()
 	tlsCfg.MinVersion = tls.VersionTLS12
