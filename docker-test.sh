@@ -412,13 +412,15 @@ openssl pkcs12 -export -inkey "$WORK3/k.pem" -in "$WORK3/c.pem" \
   -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 >/dev/null 2>&1
 [[ -s "$WORK3/test.p12" ]] || { echo "  ✗ openssl 生成 p12 失败"; exit 1; }
 
-# Before upload: download page should NOT include the auto button
+# Before upload: zealot model serves UNSIGNED mobileconfig by default,
+# so the auto button MUST be present (with a hint that iPhone shows
+# a "未签名" warning on the install sheet).
 PAGE_BEFORE=$(curl -sS "$SERVER/d/clitest")
-if echo "$PAGE_BEFORE" | grep -q "一键获取 UDID"; then
-  echo "  ✗ 上传前下载页不该显示自动按钮"
-  exit 1
-fi
-echo "  上传前下载页正确隐藏自动按钮"
+echo "$PAGE_BEFORE" | grep -q "一键获取 UDID" \
+  || { echo "  ✗ 未装证书时下载页也应显示自动按钮（zealot 模式）"; exit 1; }
+echo "$PAGE_BEFORE" | grep -q "未签名" \
+  || { echo "  ✗ 未装证书时应提示 iPhone 会弹未签名警告"; exit 1; }
+echo "  ✓ 未装证书时下载页已显示自动按钮 + 未签名提示"
 
 # Upload via the admin form (multipart)
 curl -sS -b "$CK" -o /dev/null -w "" \
@@ -463,9 +465,12 @@ echo "  ✓ 错误密码上传被拒，原证书未受影响"
 # Delete
 curl -sS -b "$CK" -o /dev/null -X POST "$SERVER/admin/signing-cert/delete"
 PAGE_GONE=$(curl -sS "$SERVER/d/clitest")
+# zealot 模式：删除证书后自动按钮仍保留（mobileconfig 回退为 unsigned）
 echo "$PAGE_GONE" | grep -q "一键获取 UDID" \
-  && { echo "  ✗ 删除后还显示自动按钮"; exit 1; }
-echo "  ✓ 删除证书后下载页恢复手动模式"
+  || { echo "  ✗ 删除证书后自动按钮不该消失（zealot 默认 unsigned）"; exit 1; }
+echo "$PAGE_GONE" | grep -q "未签名" \
+  || { echo "  ✗ 删除证书后应重新提示 iPhone 会弹未签名警告"; exit 1; }
+echo "  ✓ 删除证书后下载页保留自动按钮（unsigned 模式 + 未签名提示）"
 
 # Suitability check: upload a cert whose EKU is codeSigning (mimics
 # Apple Distribution) and assert the admin UI marks it Unsuitable.
