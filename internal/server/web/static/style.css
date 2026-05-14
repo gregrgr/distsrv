@@ -456,6 +456,32 @@ main.container.download {
 }
 .hint .btn { margin-top: 8px; width: 100%; }
 
+/* UDID success banner shown after Profile Service callback redirects
+   the user back to /d/<short_id>?udid=... */
+.udid-banner {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 0 auto 24px;
+  max-width: 480px;
+  text-align: center;
+}
+.udid-banner h3 { color: var(--success); margin: 0 0 8px; font-size: 16px; }
+.udid-banner .udid-value {
+  display: inline-block;
+  margin: 8px 0;
+  padding: 10px 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  user-select: all;
+  cursor: copy;
+  word-break: break-all;
+}
+
 .qr {
   text-align: center;
   margin: 32px auto 24px;

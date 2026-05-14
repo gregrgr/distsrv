@@ -109,60 +109,6 @@ func TestMobileconfigRendersValidXML(t *testing.T) {
 	}
 }
 
-// TestUDIDCompleteRendersValidXML — the Profile Service callback must
-// return a valid signed mobileconfig as its body to avoid iOS reporting
-// "安装失败" / "Installation Failed" after the device POSTs its info.
-// This guards the template (the signing layer is exercised separately).
-func TestUDIDCompleteRendersValidXML(t *testing.T) {
-	plistFuncs := texttmpl.FuncMap{"xml": xmlEscapeStr}
-	tpl, err := texttmpl.New("").Funcs(plistFuncs).ParseFS(webFS, "web/plist/*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var buf bytes.Buffer
-	if err := tpl.ExecuteTemplate(&buf, "udid-complete.tmpl", map[string]any{
-		"AppName":     "MyApp <demo>",
-		"AppShortID":  "myapp",
-		"OrgName":     "ACME & Co",
-		"OrgSlug":     "acme",
-		"PayloadUUID": "1d2e3f40-aaaa-4bbb-9ccc-1234567890ab",
-	}); err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-	out := buf.String()
-	if !strings.HasPrefix(out, "<?xml") {
-		t.Fatalf("udid-complete does not start with <?xml; got: %q", out[:32])
-	}
-	dec := xml.NewDecoder(strings.NewReader(out))
-	for {
-		_, err := dec.Token()
-		if err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
-			t.Fatalf("udid-complete is not valid XML: %v\n---\n%s", err, out)
-		}
-	}
-	// Must declare PayloadType=Configuration with an empty PayloadContent
-	// array so iOS understands "no further profile to install".
-	for _, must := range []string{
-		"<string>Configuration</string>",
-		"<key>PayloadContent</key>\n    <array/>",
-		"<string>1d2e3f40-aaaa-4bbb-9ccc-1234567890ab</string>",
-	} {
-		if !strings.Contains(out, must) {
-			t.Errorf("udid-complete missing fragment: %q\n---\n%s", must, out)
-		}
-	}
-	// User-supplied strings must be XML-escaped.
-	if !strings.Contains(out, "MyApp &lt;demo&gt;") {
-		t.Errorf("AppName not XML-escaped")
-	}
-	if !strings.Contains(out, "ACME &amp; Co") {
-		t.Errorf("OrgName not XML-escaped")
-	}
-}
-
 // TestMobileconfigPayloadUUIDIsValidRFC4122 — regression: iOS rejects a
 // .mobileconfig whose PayloadUUID is not an RFC 4122 UUID with dashes.
 // We don't render via the handler here (would need an httptest server);

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -35,10 +37,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 type downloadPageData struct {
-	App             *db.App
-	IOSVersion      *db.Version
-	AndroidVersion  *db.Version
-	PlatformHint    string // ios | android | both
+	App            *db.App
+	IOSVersion     *db.Version
+	AndroidVersion *db.Version
+	PlatformHint   string // ios | android | both
 	// ITMSURL and QRDataURL must be template.URL so html/template lets
 	// the non-standard itms-services:// and data:image/... schemes
 	// through (otherwise they get rewritten to "#ZgotmplZ").
@@ -51,6 +53,10 @@ type downloadPageData struct {
 	NeedsPassword   bool
 	PasswordError   string
 	BaseURL         string
+	// CollectedUDID is the UDID just submitted via the Profile Service
+	// callback (?udid=... query). When non-empty the page renders a
+	// success banner so the user can copy/share their UDID.
+	CollectedUDID string
 }
 
 func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
@@ -71,9 +77,10 @@ func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := downloadPageData{
-		App:     app,
-		Site:    s.cfg.Site,
-		BaseURL: s.baseURL(),
+		App:           app,
+		Site:          s.cfg.Site,
+		BaseURL:       s.baseURL(),
+		CollectedUDID: r.URL.Query().Get("udid"),
 	}
 
 	if app.CurrentIOSVersionID.Valid {
@@ -380,10 +387,8 @@ func (s *Server) handleUDIDCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var app *db.App
 	if shortID != "" && payload.UDID != "" {
 		if a, err := s.db.GetAppByShortID(shortID); err == nil {
-			app = a
 			_ = s.db.UpsertUDID(&db.UDID{
 				AppID:   a.ID,
 				UDID:    payload.UDID,
@@ -395,46 +400,24 @@ func (s *Server) handleUDIDCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Apple's Profile Service expects the callback response to be a
-	// signed mobileconfig (Configuration-type) — returning plain text
-	// makes iOS abort with "安装失败" / "Installation Failed" *after*
-	// the device info has been POSTed (so we still get the UDID, but
-	// the user sees an error). Send back an empty-PayloadContent
-	// Configuration profile, signed with the same LE cert, to close
-	// the flow cleanly.
-	uuid, _ := auth.RandomUUIDv4()
-	appName := "App"
-	appShort := shortID
-	if app != nil {
-		appName = app.Name
-		appShort = app.ShortID
-	}
-	var buf bytes.Buffer
-	if err := s.plist.ExecuteTemplate(&buf, "udid-complete.tmpl", map[string]any{
-		"AppName":     appName,
-		"AppShortID":  appShort,
-		"OrgName":     s.cfg.Site.OrgName,
-		"OrgSlug":     s.cfg.Site.OrgSlug,
-		"PayloadUUID": uuid,
-	}); err != nil {
-		log.Printf("udid-complete render: %v", err)
-		http.Error(w, "render error", http.StatusInternalServerError)
-		return
-	}
+	// Apple's Profile Service protocol allows the callback to respond
+	// with a plist containing a `redirect-url` key. iOS will close the
+	// "installing profile" sheet and open that URL in Safari. This is
+	// much more reliable than trying to install a second mobileconfig
+	// (which gives "无效的描述文件" / "安装失败" / "描述为空" on various
+	// iOS versions when PayloadContent is empty).
+	target := fmt.Sprintf("%s/d/%s?udid=%s", s.baseURL(),
+		url.PathEscape(shortID), url.QueryEscape(payload.UDID))
+	var resp bytes.Buffer
+	resp.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	resp.WriteString(`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` + "\n")
+	resp.WriteString(`<plist version="1.0"><dict><key>redirect-url</key><string>`)
+	_ = xml.EscapeText(&resp, []byte(target))
+	resp.WriteString(`</string></dict></plist>`)
 
-	if s.autocert != nil {
-		if signed, err := s.signMobileconfig(buf.Bytes()); err == nil {
-			w.Header().Set("Content-Type", "application/x-apple-aspen-config")
-			_, _ = w.Write(signed)
-			return
-		} else {
-			log.Printf("udid-complete sign: %v — falling back to unsigned", err)
-		}
-	}
-	// Dev/sign-failure fallback: unsigned XML (won't satisfy iOS 16+ but
-	// at least matches the right Content-Type).
-	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
-	_, _ = w.Write(buf.Bytes())
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(resp.Bytes())
 }
 
 // ---- helpers ----

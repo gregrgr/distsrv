@@ -10,6 +10,15 @@
     {{if .App.Description}}<p class="desc">{{.App.Description}}</p>{{end}}
   </header>
 
+  {{if .CollectedUDID}}
+  <section class="udid-banner">
+    <h3>✓ 本机 UDID 已记录</h3>
+    <p class="hint">把下面这串 UDID 发给开发者，加进 Provisioning Profile 后即可安装应用。</p>
+    <code class="udid-value" onclick="navigator.clipboard&amp;&amp;navigator.clipboard.writeText(this.textContent)">{{.CollectedUDID}}</code>
+    <p class="hint">（点击 UDID 可复制）</p>
+  </section>
+  {{end}}
+
   <section class="versions">
     {{if and .IOSVersion (or (eq .PlatformHint "ios") (eq .PlatformHint "both"))}}
     <div class="platform-card ios {{if eq .PlatformHint "ios"}}primary{{end}}">

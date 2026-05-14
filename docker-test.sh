@@ -345,17 +345,25 @@ CALLBACK_CT=$(curl -sS -o "$CALLBACK_RESP" -w "%{content_type}" \
   -H "Content-Type: application/x-apple-aspen-config" \
   --data-binary "$CALLBACK_BODY" \
   "$SERVER/udid-callback?app=clitest")
-echo "$CALLBACK_CT" | grep -q "application/x-apple-aspen-config" \
-  || { echo "  ✗ /udid-callback 响应 Content-Type 不对: $CALLBACK_CT"; head -c 200 "$CALLBACK_RESP"; exit 1; }
-grep -q "PayloadType" "$CALLBACK_RESP" \
-  || { echo "  ✗ /udid-callback 响应不是 mobileconfig (无 PayloadType)"; head -c 200 "$CALLBACK_RESP"; exit 1; }
-grep -q "<string>Configuration</string>" "$CALLBACK_RESP" \
-  || { echo "  ✗ /udid-callback 响应 PayloadType 不是 Configuration"; head -c 200 "$CALLBACK_RESP"; exit 1; }
-# Verify UDID was recorded
-UDIDS_JSON=$(curl -sS -H "Authorization: Bearer $TOKEN" -X POST \
-  "$SERVER/admin/users" 2>/dev/null || true)
-# Use sqlite via admin -- simpler: just check log
-echo "  ✓ /udid-callback 返回签名/未签名 Configuration mobileconfig"
+echo "$CALLBACK_CT" | grep -q "application/xml" \
+  || { echo "  ✗ /udid-callback Content-Type 不对: $CALLBACK_CT"; head -c 200 "$CALLBACK_RESP"; exit 1; }
+grep -q "redirect-url" "$CALLBACK_RESP" \
+  || { echo "  ✗ /udid-callback 响应未含 redirect-url"; cat "$CALLBACK_RESP"; exit 1; }
+# Response must be a valid XML plist
+python3 -c "import xml.etree.ElementTree as ET; ET.parse('$CALLBACK_RESP')" \
+  || { echo "  ✗ /udid-callback 响应不是合法 XML"; cat "$CALLBACK_RESP"; exit 1; }
+# redirect target should land on the download page with the UDID query
+grep -qE "redirect-url</key><string>http[^<]*/d/clitest\?udid=FAKE-TEST-UDID-12345" "$CALLBACK_RESP" \
+  || { echo "  ✗ redirect-url 没指向下载页 + UDID query"; cat "$CALLBACK_RESP"; exit 1; }
+echo "  ✓ /udid-callback 返回带 redirect-url 的 plist"
+
+# Front-end banner: GET /d/clitest?udid=FOO should show the UDID
+BANNER=$(curl -sS "$SERVER/d/clitest?udid=BANNER-TEST-UDID-99")
+echo "$BANNER" | grep -q "BANNER-TEST-UDID-99" \
+  || { echo "  ✗ ?udid=... query 没在下载页显示"; echo "$BANNER" | grep -i udid | head -3; exit 1; }
+echo "$BANNER" | grep -q "udid-banner" \
+  || { echo "  ✗ udid-banner class 没渲染"; exit 1; }
+echo "  ✓ 下载页 ?udid=... 显示 UDID banner"
 
 echo "✓ API + CLI 全部通过"
 EOF
