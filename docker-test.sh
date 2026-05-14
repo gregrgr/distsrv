@@ -462,6 +462,23 @@ echo "  ✓ 删除证书后下载页恢复手动模式"
 
 rm -rf "$WORK3"
 
+# Home page: must list public apps + show platform-specific download buttons
+HOME=$(curl -sS "$SERVER/")
+echo "$HOME" | grep -q "app-card" \
+  || { echo "  ✗ 主页未渲染 app-list / app-card"; echo "$HOME" | head -40; exit 1; }
+echo "$HOME" | grep -q 'href="/d/clitest"' \
+  || { echo "  ✗ 主页未链接到 /d/clitest"; exit 1; }
+echo "$HOME" | grep -q 'itms-services://.*manifest/' \
+  || { echo "  ✗ 主页 iOS 按钮缺少 itms-services URL"; exit 1; }
+echo "$HOME" | grep -q '#ZgotmplZ' \
+  && { echo "  ✗ 主页 itms-services URL 被 html/template 错误改写"; exit 1; }
+# UA-targeted highlighting: hitting / with a Safari/iPhone UA should mark
+# the iOS button as primary-platform.
+HOME_IOS=$(curl -sS -A "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1" "$SERVER/")
+echo "$HOME_IOS" | grep -q 'dl-ios primary-platform' \
+  || { echo "  ✗ iPhone UA 未触发 iOS 按钮 primary-platform 高亮"; exit 1; }
+echo "  ✓ 主页列出应用 + iOS/Android 按钮 + UA 高亮"
+
 echo "✓ API + CLI 全部通过"
 EOF
 

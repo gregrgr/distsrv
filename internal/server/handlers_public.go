@@ -27,13 +27,67 @@ import (
 	"distsrv/internal/parser"
 )
 
+// indexAppRow is one app's listing on the public home page.
+type indexAppRow struct {
+	App        *db.App
+	IOSVer     *db.Version
+	AndroidVer *db.Version
+	// ITMSURL is template.URL because html/template otherwise rewrites
+	// the itms-services:// scheme to "#ZgotmplZ".
+	ITMSURL    template.URL
+	APKURL     string
+	IconURL    string
+	UAPlatform string // "ios" | "android" | "both" — highlight match
+}
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
+	apps, err := s.db.ListApps()
+	if err != nil {
+		log.Printf("index list apps: %v", err)
+	}
+	platform := uaPlatform(r)
+
+	var rows []indexAppRow
+	for _, a := range apps {
+		// Password-protected apps stay hidden from the public index;
+		// users still need a direct link with the password gate.
+		if a.PasswordHash != "" {
+			continue
+		}
+		row := indexAppRow{App: a, UAPlatform: platform}
+		if a.CurrentIOSVersionID.Valid {
+			if v, err := s.db.GetVersion(a.CurrentIOSVersionID.Int64); err == nil {
+				row.IOSVer = v
+				manifestURL := fmt.Sprintf("%s/manifest/%d.plist", s.baseURL(), v.ID)
+				row.ITMSURL = template.URL("itms-services://?action=download-manifest&url=" + manifestURL)
+				if v.IconPath != "" && row.IconURL == "" {
+					row.IconURL = fmt.Sprintf("%s/icon/%d.png", s.baseURL(), v.ID)
+				}
+			}
+		}
+		if a.CurrentAndroidVersionID.Valid {
+			if v, err := s.db.GetVersion(a.CurrentAndroidVersionID.Int64); err == nil {
+				row.AndroidVer = v
+				row.APKURL = fmt.Sprintf("%s/file/%d/%s", s.baseURL(), v.ID, filepath.Base(v.FilePath))
+				if v.IconPath != "" && row.IconURL == "" {
+					row.IconURL = fmt.Sprintf("%s/icon/%d.png", s.baseURL(), v.ID)
+				}
+			}
+		}
+		// No published build on either platform -> hide.
+		if row.IOSVer == nil && row.AndroidVer == nil {
+			continue
+		}
+		rows = append(rows, row)
+	}
+
 	s.renderHTML(w, http.StatusOK, "index.html", map[string]any{
 		"Site": s.cfg.Site,
+		"Apps": rows,
 	})
 }
 
