@@ -462,22 +462,26 @@ echo "  ✓ 删除证书后下载页恢复手动模式"
 
 rm -rf "$WORK3"
 
-# Home page: must list public apps + show platform-specific download buttons
+# Home page: each app is a single entry link to /d/<short>; the actual
+# install / UDID flow lives on the detail page. The card surfaces icon,
+# name and platform-version chips, NOT direct itms-services URLs.
 HOME=$(curl -sS "$SERVER/")
-echo "$HOME" | grep -q "app-card" \
-  || { echo "  ✗ 主页未渲染 app-list / app-card"; echo "$HOME" | head -40; exit 1; }
+echo "$HOME" | grep -q 'app-card-link' \
+  || { echo "  ✗ 主页未渲染 app-card-link"; echo "$HOME" | head -40; exit 1; }
 echo "$HOME" | grep -q 'href="/d/clitest"' \
   || { echo "  ✗ 主页未链接到 /d/clitest"; exit 1; }
-echo "$HOME" | grep -q 'itms-services://.*manifest/' \
-  || { echo "  ✗ 主页 iOS 按钮缺少 itms-services URL"; exit 1; }
-echo "$HOME" | grep -q '#ZgotmplZ' \
-  && { echo "  ✗ 主页 itms-services URL 被 html/template 错误改写"; exit 1; }
-# UA-targeted highlighting: hitting / with a Safari/iPhone UA should mark
-# the iOS button as primary-platform.
+# Main page should NOT contain itms-services URLs (those are on /d/...)
+if echo "$HOME" | grep -q 'itms-services'; then
+  echo "  ✗ 主页不该直接渲染 itms-services URL — 应该走 /d/<short> 详情页"
+  exit 1
+fi
+echo "$HOME" | grep -q 'plat-ios' \
+  || { echo "  ✗ 主页缺 iOS 平台 chip"; exit 1; }
+# UA-targeted chip: hitting / with iPhone UA highlights iOS chip
 HOME_IOS=$(curl -sS -A "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1" "$SERVER/")
-echo "$HOME_IOS" | grep -q 'dl-ios primary-platform' \
-  || { echo "  ✗ iPhone UA 未触发 iOS 按钮 primary-platform 高亮"; exit 1; }
-echo "  ✓ 主页列出应用 + iOS/Android 按钮 + UA 高亮"
+echo "$HOME_IOS" | grep -q 'plat-ios primary-platform' \
+  || { echo "  ✗ iPhone UA 未触发 iOS chip primary-platform 高亮"; exit 1; }
+echo "  ✓ 主页是 /d/<short> 入口（含 chip + UA 高亮，不直接渲染 itms URL）"
 
 echo "✓ API + CLI 全部通过"
 EOF

@@ -27,15 +27,14 @@ import (
 	"distsrv/internal/parser"
 )
 
-// indexAppRow is one app's listing on the public home page.
+// indexAppRow is one app's listing on the public home page. The home
+// page is an entry/index — it links into /d/<short_id> where the
+// install / UDID-collection / trust UI lives. So we keep just enough
+// here to pick which app to enter (icon, platform versions, UA hint).
 type indexAppRow struct {
 	App        *db.App
 	IOSVer     *db.Version
 	AndroidVer *db.Version
-	// ITMSURL is template.URL because html/template otherwise rewrites
-	// the itms-services:// scheme to "#ZgotmplZ".
-	ITMSURL    template.URL
-	APKURL     string
 	IconURL    string
 	UAPlatform string // "ios" | "android" | "both" — highlight match
 }
@@ -62,8 +61,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		if a.CurrentIOSVersionID.Valid {
 			if v, err := s.db.GetVersion(a.CurrentIOSVersionID.Int64); err == nil {
 				row.IOSVer = v
-				manifestURL := fmt.Sprintf("%s/manifest/%d.plist", s.baseURL(), v.ID)
-				row.ITMSURL = template.URL("itms-services://?action=download-manifest&url=" + manifestURL)
 				if v.IconPath != "" && row.IconURL == "" {
 					row.IconURL = fmt.Sprintf("%s/icon/%d.png", s.baseURL(), v.ID)
 				}
@@ -72,7 +69,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		if a.CurrentAndroidVersionID.Valid {
 			if v, err := s.db.GetVersion(a.CurrentAndroidVersionID.Int64); err == nil {
 				row.AndroidVer = v
-				row.APKURL = fmt.Sprintf("%s/file/%d/%s", s.baseURL(), v.ID, filepath.Base(v.FilePath))
 				if v.IconPath != "" && row.IconURL == "" {
 					row.IconURL = fmt.Sprintf("%s/icon/%d.png", s.baseURL(), v.ID)
 				}

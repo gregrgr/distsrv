@@ -536,44 +536,44 @@ main.container.download {
 }
 .hero p { color: var(--fg-soft); font-size: 16px; max-width: 560px; margin: 8px auto 24px; }
 
-/* Home page app list — one card per app, with iOS/Android download
-   buttons distinguished by visual treatment. Whichever platform
-   matches the visitor's UA is highlighted via .primary-platform. */
+/* Home page app list — each card is itself a link into /d/<short_id>,
+   which is where the real install / UDID-collection / trust UI lives.
+   The card just shows enough (icon, name, platform versions) to let the
+   user pick which app to enter. */
 .app-list {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   margin: 24px auto;
-  max-width: 880px;
+  max-width: 560px;
 }
-.app-card {
-  flex: 1 1 320px;
-  max-width: 420px;
+.app-card-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 20px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  text-decoration: none;
+  color: inherit;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
-.app-card:hover {
-  transform: translateY(-2px);
+.app-card-link:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
   box-shadow: var(--shadow);
   border-color: var(--border-strong);
 }
-.app-link {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  color: inherit;
-  text-decoration: none;
-}
-.app-link:hover { text-decoration: none; }
+.app-card-link:active { transform: translateY(0); }
+
 .app-icon-sm {
-  width: 60px;
-  height: 60px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 13px;
   background: var(--bg-soft);
   border: 1px solid var(--border);
   object-fit: cover;
@@ -589,7 +589,8 @@ main.container.download {
   background: var(--primary-soft);
   border-color: transparent;
 }
-.app-meta { min-width: 0; }
+
+.app-meta { flex: 1; min-width: 0; }
 .app-meta h3 {
   margin: 0;
   font-size: 16px;
@@ -602,56 +603,46 @@ main.container.download {
   font-size: 13px;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 }
-.app-meta .hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--fg-mute);
-}
 
-.app-actions {
+/* Platform-version chips — show what builds are published, NOT links. */
+.app-platforms {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
-.app-actions .dl-btn {
-  flex: 1;
+.plat-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 12px;
-  font-size: 14px;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  transition: filter 0.15s ease, transform 0.06s ease;
-}
-.app-actions .dl-btn svg { width: 16px; height: 16px; }
-.app-actions .dl-btn:active { transform: translateY(1px); }
-
-/* Default (non-matching platform) — subtle neutral button. */
-.app-actions .dl-ios,
-.app-actions .dl-android {
+  letter-spacing: 0.02em;
   background: var(--bg-soft);
-  color: var(--fg);
-  border: 1px solid var(--border-strong);
+  color: var(--fg-soft);
+  border: 1px solid var(--border);
 }
-.app-actions .dl-ios:hover,
-.app-actions .dl-android:hover { background: var(--bg-elev); filter: brightness(0.97); }
+.plat-badge svg { width: 11px; height: 11px; }
+.plat-badge.primary-platform {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: transparent;
+}
 
-/* Matching platform — strong colored fill. */
-.app-actions .dl-ios.primary-platform {
-  background: var(--ios);
-  color: var(--bg);
-  border-color: var(--ios);
+.enter-chevron {
+  font-size: 24px;
+  color: var(--fg-mute);
+  flex-shrink: 0;
+  margin-right: -4px;
+  line-height: 1;
+  transition: transform 0.12s ease, color 0.12s ease;
 }
-.app-actions .dl-android.primary-platform {
-  background: var(--android);
-  color: #fff;
-  border-color: var(--android);
+.app-card-link:hover .enter-chevron {
+  color: var(--primary);
+  transform: translateX(2px);
 }
-.app-actions .dl-ios.primary-platform:hover,
-.app-actions .dl-android.primary-platform:hover { filter: brightness(0.93); }

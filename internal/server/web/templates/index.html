@@ -8,46 +8,41 @@
   {{if .Apps}}
   <section class="app-list">
     {{range .Apps}}
-    <article class="app-card">
-      <a class="app-link" href="/d/{{.App.ShortID}}">
-        {{if .IconURL}}
-          <img class="app-icon-sm" src="{{.IconURL}}" alt="{{.App.Name}}">
-        {{else}}
-          <div class="app-icon-sm fallback">{{firstChar .App.Name}}</div>
-        {{end}}
-        <div class="app-meta">
-          <h3>{{.App.Name}}</h3>
-          {{if .App.Description}}<p class="desc">{{.App.Description}}</p>{{end}}
-          {{if and .IOSVer .AndroidVer}}
-          <p class="hint">iOS {{.IOSVer.VersionName}} · Android {{.AndroidVer.VersionName}}</p>
-          {{else if .IOSVer}}
-          <p class="hint">iOS {{.IOSVer.VersionName}} ({{.IOSVer.VersionCode}})</p>
-          {{else if .AndroidVer}}
-          <p class="hint">Android {{.AndroidVer.VersionName}} ({{.AndroidVer.VersionCode}})</p>
+    <a class="app-card-link" href="/d/{{.App.ShortID}}" aria-label="进入 {{.App.Name}} 下载页">
+      {{if .IconURL}}
+        <img class="app-icon-sm" src="{{.IconURL}}" alt="">
+      {{else}}
+        <div class="app-icon-sm fallback">{{firstChar .App.Name}}</div>
+      {{end}}
+      <div class="app-meta">
+        <h3>{{.App.Name}}</h3>
+        {{if .App.Description}}<p class="desc">{{.App.Description}}</p>{{end}}
+        <div class="app-platforms">
+          {{if .IOSVer}}
+          <span class="plat-badge plat-ios{{if eq .UAPlatform "ios"}} primary-platform{{end}}">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12-.99.358-2.026.974-2.74.71-.84 1.99-1.474 2.92-1.5.06.21.07.42.07.59zm4.665 16.99c-.78 1.69-1.16 2.44-2.16 3.92-1.4 2.07-3.36 4.65-5.8 4.69-2.17.04-2.72-1.4-5.66-1.39-2.94.02-3.55 1.42-5.72 1.39-2.44-.05-4.3-2.36-5.7-4.43C-5.04 18.69-5.36 9.6-1.18 6.41 1 4.43 3.7 3.5 5.85 3.5c2.34 0 3.81 1.26 5.74 1.26 1.87 0 3.01-1.27 5.71-1.27 2.04 0 4.2 1.11 5.74 3.03-5.04 2.76-4.22 9.96 1.06 11.9z" transform="translate(2 0)"/>
+            </svg>
+            iOS {{.IOSVer.VersionName}}
+          </span>
+          {{end}}
+          {{if .AndroidVer}}
+          <span class="plat-badge plat-android{{if eq .UAPlatform "android"}} primary-platform{{end}}">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.523 15.34a1.12 1.12 0 1 1 1.12-1.12 1.12 1.12 0 0 1-1.12 1.12m-11.046 0a1.12 1.12 0 1 1 1.12-1.12 1.12 1.12 0 0 1-1.12 1.12m11.448-6.02L19.96 6.06a.42.42 0 0 0-.726-.418l-2.06 3.567A12.78 12.78 0 0 0 12 8.13a12.78 12.78 0 0 0-5.174 1.08L4.766 5.642a.42.42 0 0 0-.726.418L6.075 9.32A11.85 11.85 0 0 0 0 18.93h24a11.85 11.85 0 0 0-6.075-9.61"/>
+            </svg>
+            Android {{.AndroidVer.VersionName}}
+          </span>
           {{end}}
         </div>
-      </a>
-      <div class="app-actions">
-        {{if .IOSVer}}
-        <a class="btn dl-btn dl-ios{{if eq .UAPlatform "ios"}} primary-platform{{end}}" href="{{.ITMSURL}}">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12-.99.358-2.026.974-2.74.71-.84 1.99-1.474 2.92-1.5.06.21.07.42.07.59zm4.665 16.99c-.78 1.69-1.16 2.44-2.16 3.92-1.4 2.07-3.36 4.65-5.8 4.69-2.17.04-2.72-1.4-5.66-1.39-2.94.02-3.55 1.42-5.72 1.39-2.44-.05-4.3-2.36-5.7-4.43C-5.04 18.69-5.36 9.6-1.18 6.41 1 4.43 3.7 3.5 5.85 3.5c2.34 0 3.81 1.26 5.74 1.26 1.87 0 3.01-1.27 5.71-1.27 2.04 0 4.2 1.11 5.74 3.03-5.04 2.76-4.22 9.96 1.06 11.9z" transform="translate(2 0)"/>
-          </svg>
-          <span>iOS 安装</span>
-        </a>
-        {{end}}
-        {{if .AndroidVer}}
-        <a class="btn dl-btn dl-android{{if eq .UAPlatform "android"}} primary-platform{{end}}" href="{{.APKURL}}">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M17.523 15.34a1.12 1.12 0 1 1 1.12-1.12 1.12 1.12 0 0 1-1.12 1.12m-11.046 0a1.12 1.12 0 1 1 1.12-1.12 1.12 1.12 0 0 1-1.12 1.12m11.448-6.02L19.96 6.06a.42.42 0 0 0-.726-.418l-2.06 3.567A12.78 12.78 0 0 0 12 8.13a12.78 12.78 0 0 0-5.174 1.08L4.766 5.642a.42.42 0 0 0-.726.418L6.075 9.32A11.85 11.85 0 0 0 0 18.93h24a11.85 11.85 0 0 0-6.075-9.61"/>
-          </svg>
-          <span>Android 下载</span>
-        </a>
-        {{end}}
       </div>
-    </article>
+      <span class="enter-chevron" aria-hidden="true">›</span>
+    </a>
     {{end}}
   </section>
+  <p class="hint" style="text-align:center;max-width:560px;margin:16px auto 32px">
+    点击应用进入下载页 — 含安装按钮、UDID 收集、二维码、安装故障排查等。
+  </p>
   {{else}}
   <section class="empty" style="margin:32px auto;max-width:560px">
     暂无可下载的应用。<br>
