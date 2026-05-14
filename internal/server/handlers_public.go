@@ -380,10 +380,12 @@ func (s *Server) handleUDIDCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var app *db.App
 	if shortID != "" && payload.UDID != "" {
-		if app, err := s.db.GetAppByShortID(shortID); err == nil {
+		if a, err := s.db.GetAppByShortID(shortID); err == nil {
+			app = a
 			_ = s.db.UpsertUDID(&db.UDID{
-				AppID:   app.ID,
+				AppID:   a.ID,
 				UDID:    payload.UDID,
 				Product: payload.Product,
 				Version: payload.Version,
@@ -393,9 +395,46 @@ func (s *Server) handleUDIDCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "UDID 已记录：%s\n请联系管理员将该设备添加到 Provisioning Profile。", payload.UDID)
+	// Apple's Profile Service expects the callback response to be a
+	// signed mobileconfig (Configuration-type) — returning plain text
+	// makes iOS abort with "安装失败" / "Installation Failed" *after*
+	// the device info has been POSTed (so we still get the UDID, but
+	// the user sees an error). Send back an empty-PayloadContent
+	// Configuration profile, signed with the same LE cert, to close
+	// the flow cleanly.
+	uuid, _ := auth.RandomUUIDv4()
+	appName := "App"
+	appShort := shortID
+	if app != nil {
+		appName = app.Name
+		appShort = app.ShortID
+	}
+	var buf bytes.Buffer
+	if err := s.plist.ExecuteTemplate(&buf, "udid-complete.tmpl", map[string]any{
+		"AppName":     appName,
+		"AppShortID":  appShort,
+		"OrgName":     s.cfg.Site.OrgName,
+		"OrgSlug":     s.cfg.Site.OrgSlug,
+		"PayloadUUID": uuid,
+	}); err != nil {
+		log.Printf("udid-complete render: %v", err)
+		http.Error(w, "render error", http.StatusInternalServerError)
+		return
+	}
+
+	if s.autocert != nil {
+		if signed, err := s.signMobileconfig(buf.Bytes()); err == nil {
+			w.Header().Set("Content-Type", "application/x-apple-aspen-config")
+			_, _ = w.Write(signed)
+			return
+		} else {
+			log.Printf("udid-complete sign: %v — falling back to unsigned", err)
+		}
+	}
+	// Dev/sign-failure fallback: unsigned XML (won't satisfy iOS 16+ but
+	// at least matches the right Content-Type).
+	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
+	_, _ = w.Write(buf.Bytes())
 }
 
 // ---- helpers ----

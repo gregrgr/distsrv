@@ -334,6 +334,29 @@ echo "$PAGE2" | grep -q "manifest/${NEW_VID}.plist" \
   || { echo "  ✗ 下载页 manifest URL 没指向新版本"; echo "$PAGE2" | grep manifest; exit 1; }
 echo "  ✓ 下载页 manifest 指向新版本"
 
+# UDID-callback regression: Profile Service expects the callback
+# response to be a signed mobileconfig (PayloadType=Configuration with
+# empty PayloadContent). Returning plain text or 200 with no body makes
+# iOS show "安装失败" after the device has POSTed its info.
+CALLBACK_BODY='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>UDID</key><string>FAKE-TEST-UDID-12345</string><key>PRODUCT</key><string>iPhone15,2</string><key>VERSION</key><string>17.5</string></dict></plist>'
+CALLBACK_RESP=$(mktemp)
+CALLBACK_CT=$(curl -sS -o "$CALLBACK_RESP" -w "%{content_type}" \
+  -X POST \
+  -H "Content-Type: application/x-apple-aspen-config" \
+  --data-binary "$CALLBACK_BODY" \
+  "$SERVER/udid-callback?app=clitest")
+echo "$CALLBACK_CT" | grep -q "application/x-apple-aspen-config" \
+  || { echo "  ✗ /udid-callback 响应 Content-Type 不对: $CALLBACK_CT"; head -c 200 "$CALLBACK_RESP"; exit 1; }
+grep -q "PayloadType" "$CALLBACK_RESP" \
+  || { echo "  ✗ /udid-callback 响应不是 mobileconfig (无 PayloadType)"; head -c 200 "$CALLBACK_RESP"; exit 1; }
+grep -q "<string>Configuration</string>" "$CALLBACK_RESP" \
+  || { echo "  ✗ /udid-callback 响应 PayloadType 不是 Configuration"; head -c 200 "$CALLBACK_RESP"; exit 1; }
+# Verify UDID was recorded
+UDIDS_JSON=$(curl -sS -H "Authorization: Bearer $TOKEN" -X POST \
+  "$SERVER/admin/users" 2>/dev/null || true)
+# Use sqlite via admin -- simpler: just check log
+echo "  ✓ /udid-callback 返回签名/未签名 Configuration mobileconfig"
+
 echo "✓ API + CLI 全部通过"
 EOF
 

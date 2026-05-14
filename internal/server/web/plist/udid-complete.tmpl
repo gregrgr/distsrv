@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array/>
+    <key>PayloadDisplayName</key>
+    <string>{{xml .AppName}} UDID 已记录</string>
+    <key>PayloadDescription</key>
+    <string>设备 UDID 已成功提交给 {{xml .OrgName}}。请联系管理员添加到测试设备名单，之后回到 Safari 重新打开分发页面安装 App。</string>
+    <key>PayloadIdentifier</key>
+    <string>com.{{xml .OrgSlug}}.udid.complete.{{xml .AppShortID}}</string>
+    <key>PayloadOrganization</key>
+    <string>{{xml .OrgName}}</string>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>{{xml .PayloadUUID}}</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>
