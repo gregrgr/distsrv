@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/crypto/pkcs12"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 
 	"distsrv/internal/config"
 )
