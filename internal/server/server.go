@@ -36,10 +36,14 @@ type Server struct {
 	plist    *texttmpl.Template
 	staticFS fs.FS
 	// autocert is the ACME manager used in production. It's also used by
-	// handleMobileconfig to fetch the live TLS cert + private key so the
-	// .mobileconfig can be CMS-signed (iOS 16+ requires PKCS7 signature
-	// for PayloadType=Profile Service).
+	// handleMobileconfig as a fallback signer when no dedicated
+	// code-signing cert is configured.
 	autocert *autocert.Manager
+	// profileSigningCert is an Apple-issued (or other trusted)
+	// code-signing certificate loaded at startup from [server.profile_signing].
+	// When set, mobileconfig PKCS7 signing uses it instead of the LE
+	// TLS cert (which iOS 16+ does not accept for profile signing).
+	profileSigningCert *tls.Certificate
 }
 
 func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, error) {
@@ -52,6 +56,21 @@ func New(cfg *config.Config, database *db.DB, st *storage.Manager) (*Server, err
 		return nil, fmt.Errorf("static fs: %w", err)
 	}
 	s.staticFS = sub
+
+	// Optional: code-signing cert for the UDID-collection .mobileconfig.
+	psc, err := loadProfileSigningCert(cfg.Server.ProfileSigning)
+	if err != nil {
+		return nil, fmt.Errorf("profile signing cert: %w", err)
+	}
+	if psc != nil {
+		s.profileSigningCert = psc
+		if psc.Leaf != nil {
+			log.Printf("loaded profile-signing cert: subject=%q issuer=%q expires=%s",
+				psc.Leaf.Subject.CommonName, psc.Leaf.Issuer.CommonName, psc.Leaf.NotAfter.Format("2006-01-02"))
+		}
+	} else {
+		log.Printf("no [server.profile_signing] cert configured — mobileconfig will be signed with LE TLS cert (may be rejected by iOS 16+)")
+	}
 	return s, nil
 }
 

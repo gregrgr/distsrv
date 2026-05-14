@@ -39,7 +39,11 @@
           <li>安装成功但启动失败：设置 → 通用 → VPN 与设备管理 → 信任开发者。</li>
           <li>iOS 26+ 启动时若提示开发者模式：设置 → 隐私与安全性 → 开发者模式 → 开。</li>
         </ul>
-        <a class="btn btn-secondary" href="/d/{{.App.ShortID}}/udid">提交我的 UDID 给开发者</a>
+        {{if .HasProfileSigningCert}}
+        <a class="btn btn-secondary" href="{{.MobileconfigURL}}">📥 一键获取 UDID（自动）</a>
+        <p class="hint" style="margin-top:8px">推荐：装一个描述文件，UDID 自动发回服务器。</p>
+        {{end}}
+        <a class="btn{{if not .HasProfileSigningCert}} btn-secondary{{end}}" href="/d/{{.App.ShortID}}/udid">手动提交 UDID</a>
       </details>
     </div>
     {{end}}

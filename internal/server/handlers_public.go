@@ -55,9 +55,15 @@ type downloadPageData struct {
 	PasswordError   string
 	BaseURL         string
 	// CollectedUDID is the UDID just submitted via the Profile Service
-	// callback (?udid=... query). When non-empty the page renders a
-	// success banner so the user can copy/share their UDID.
+	// callback (?udid=... query) or the manual form. When non-empty the
+	// page renders a success banner.
 	CollectedUDID string
+	// HasProfileSigningCert means [server.profile_signing] is configured
+	// with a real Apple-issued (or other trusted) code-signing cert, so
+	// the Profile Service mobileconfig path is expected to work on iOS
+	// 16+/26. When false the page hides that button and pushes the user
+	// to the manual /udid form instead.
+	HasProfileSigningCert bool
 }
 
 func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
@@ -78,10 +84,11 @@ func (s *Server) handleDownloadPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := downloadPageData{
-		App:           app,
-		Site:          s.cfg.Site,
-		BaseURL:       s.baseURL(),
-		CollectedUDID: r.URL.Query().Get("udid"),
+		App:                   app,
+		Site:                  s.cfg.Site,
+		BaseURL:               s.baseURL(),
+		CollectedUDID:         r.URL.Query().Get("udid"),
+		HasProfileSigningCert: s.profileSigningCert != nil,
 	}
 
 	if app.CurrentIOSVersionID.Valid {

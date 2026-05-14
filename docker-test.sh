@@ -381,6 +381,14 @@ HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
 [[ "$HTTP_CODE" == "400" ]] || { echo "  ✗ bad UDID should be 400, got $HTTP_CODE"; exit 1; }
 echo "  ✓ 手动 UDID 提交：表单 200 / 合法提交 redirect / 非法 400"
 
+# UDID submit page must include clipboard auto-paste UI
+SUBMIT_HTML=$(curl -sS "$SERVER/d/clitest/udid")
+echo "$SUBMIT_HTML" | grep -q "navigator.clipboard" \
+  || { echo "  ✗ UDID submit page 缺少 clipboard JS"; exit 1; }
+echo "$SUBMIT_HTML" | grep -q 'id="pasteBtn"' \
+  || { echo "  ✗ UDID submit page 缺少粘贴按钮"; exit 1; }
+echo "  ✓ UDID submit page 含剪贴板自动粘贴 UI"
+
 echo "✓ API + CLI 全部通过"
 EOF
 

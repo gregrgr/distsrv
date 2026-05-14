@@ -15,6 +15,24 @@ read_timeout_seconds = 300
 dev_mode = false
 dev_addr = ":8080"
 
+# === iOS Profile Service 签名证书（可选但强推） ===
+# 用来 PKCS7 签名 UDID 收集 mobileconfig。iOS 16+/26 不接受用 LE TLS 证书
+# 签的描述文件（会报"无效的描述文件"），必须用 Apple Developer 颁发的
+# code-signing 证书。配置后下载页会显示"一键获取 UDID"自动收集按钮。
+#
+# 不配置也能用 — 下载页会改用"手动提交 UDID"流程（用户在 iPhone 设置里
+# 复制 UDID 后粘贴回表单），所有 iOS 都能用。
+#
+# 推荐：在 https://developer.apple.com Certificates 里下一份 .p12 放到下面路径
+[server.profile_signing]
+# Apple Developer .p12 / .pfx 文件（含 cert + key + 链）
+# pkcs12_file = "/etc/distsrv/profile-signing.p12"
+# pkcs12_password = ""     # 也可用环境变量 DISTSRV_P12_PASSWORD 覆盖
+#
+# 或者用 PEM 双文件（cert_file 可含 chain）
+# cert_file = "/etc/distsrv/profile-signing.crt"
+# key_file  = "/etc/distsrv/profile-signing.key"
+
 [admin]
 # 仅当 users 表为空时使用，初始化第一个管理员账号
 username = "admin"

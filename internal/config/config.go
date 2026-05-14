@@ -20,14 +20,34 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Domain             string `toml:"domain"`
-	HTTPAddr           string `toml:"http_addr"`
-	HTTPSAddr          string `toml:"https_addr"`
-	ACMEEmail          string `toml:"acme_email"`
-	ACMECacheDir       string `toml:"acme_cache_dir"`
-	ReadTimeoutSeconds int    `toml:"read_timeout_seconds"`
-	DevMode            bool   `toml:"dev_mode"`
-	DevAddr            string `toml:"dev_addr"`
+	Domain             string               `toml:"domain"`
+	HTTPAddr           string               `toml:"http_addr"`
+	HTTPSAddr          string               `toml:"https_addr"`
+	ACMEEmail          string               `toml:"acme_email"`
+	ACMECacheDir       string               `toml:"acme_cache_dir"`
+	ReadTimeoutSeconds int                  `toml:"read_timeout_seconds"`
+	DevMode            bool                 `toml:"dev_mode"`
+	DevAddr            string               `toml:"dev_addr"`
+	ProfileSigning     ProfileSigningConfig `toml:"profile_signing"`
+}
+
+// ProfileSigningConfig points to an Apple-issued (or any other trusted)
+// code-signing certificate used to PKCS7-sign the UDID-collection
+// mobileconfig. iOS 16+/26 rejects mobileconfigs signed with a plain
+// TLS cert; supplying a real code-signing cert here unlocks the
+// automatic UDID-collection flow.
+//
+// Either:
+//   - pkcs12_file (+ pkcs12_password or env DISTSRV_P12_PASSWORD), or
+//   - cert_file + key_file (both PEM; cert_file may contain a chain)
+//
+// If neither is set, distsrv falls back to signing with the Let's
+// Encrypt TLS cert (works on macOS / older iOS, blocked on iOS 16+).
+type ProfileSigningConfig struct {
+	PKCS12File     string `toml:"pkcs12_file"`
+	PKCS12Password string `toml:"pkcs12_password"`
+	CertFile       string `toml:"cert_file"`
+	KeyFile        string `toml:"key_file"`
 }
 
 type AdminConfig struct {

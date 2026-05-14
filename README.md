@@ -215,6 +215,34 @@ ls dist/
 # SHA256SUMS.txt
 ```
 
+### iOS UDID 自动收集（可选：装 Apple code-signing 证书）
+
+iOS 16+/26 拒绝用 Let's Encrypt TLS 证书签名的 `.mobileconfig`。要让 **"一键自动收集 UDID"** 功能工作，需要给 distsrv 喂一份 Apple Developer 颁发的 code-signing 证书。
+
+**没装这个证书也能用**：下载页会自动切换到"手动提交 UDID"模式 — 用户在 iPhone 设置里 `通用 → 关于本机 → 长按序列号 → 复制 UDID`，回到 Safari 表单粘贴提交。所有 iOS 版本都可用，剪贴板自动粘贴让操作变成 3 步。
+
+**装了证书后**：下载页会显示"📥 一键获取 UDID（自动）"按钮，用户点一下安装 profile，iPhone 把 UDID 直接 POST 回 distsrv 写入设备列表。
+
+#### 配置
+
+把 Apple Developer Portal 导出的 `.p12` scp 到 server，在 `/etc/distsrv/config.toml` 里：
+
+```toml
+[server.profile_signing]
+pkcs12_file = "/etc/distsrv/profile-signing.p12"
+pkcs12_password = ""     # 留空 + 用环境变量 DISTSRV_P12_PASSWORD 覆盖更安全
+```
+
+或者用 PEM 形式：
+
+```toml
+[server.profile_signing]
+cert_file = "/etc/distsrv/profile-signing.crt"   # 可含 chain
+key_file  = "/etc/distsrv/profile-signing.key"
+```
+
+`sudo systemctl restart distsrv` 后日志里会看到 `loaded profile-signing cert: subject="..." issuer="..." expires=...`。
+
 ### Docker 模拟部署（验证脚本）
 
 如果想在部署到真实服务器前先试一遍 `deploy.sh`：

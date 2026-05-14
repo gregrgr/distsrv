@@ -1,45 +1,90 @@
 {{template "head" (dict "Title" "提交本机 UDID" "Site" .Site)}}
 <main class="container narrow">
   <header class="app-header" style="margin: 32px 0 24px">
-    <h1 style="font-size: 22px; text-align: center; width: 100%">{{.App.Name}} · 提交本机 UDID</h1>
-    <p class="desc" style="text-align: center">把你 iPhone 的 UDID 发给开发者，加进 Provisioning Profile 后就能正常安装应用。</p>
+    <h1 style="font-size: 22px; text-align: center; width: 100%">{{.App.Name}} · 获取本机 UDID</h1>
+    <p class="desc" style="text-align: center">三步搞定，整个过程不到 30 秒。</p>
   </header>
 
   <section class="card">
-    <h3>方法 1：iOS 18 / iOS 17 设置里查（最快）</h3>
-    <ol style="padding-left: 20px; line-height: 1.8; font-size: 14px">
-      <li>打开 <b>设置</b> → <b>通用</b> → <b>关于本机</b></li>
+    <h3>① 在 iPhone 设置里复制 UDID</h3>
+    <ol style="padding-left: 20px; line-height: 1.9; font-size: 14px; margin: 8px 0">
+      <li>切到「<b>设置</b>」app（先不要关 Safari）</li>
+      <li>进 <b>通用</b> → <b>关于本机</b></li>
       <li>找到 <b>序列号</b> 那一行，<b>长按</b>它</li>
       <li>弹出菜单里选 <b>"复制 UDID"</b>（不是"复制序列号"）</li>
-      <li>回到本页面，粘贴到下面输入框</li>
     </ol>
+    <p class="hint" style="margin-top: 8px">仅 iOS 17 及更新版本支持长按复制。旧版 iOS 见下方"其它方式"。</p>
   </section>
 
   <section class="card">
-    <h3>方法 2：用 Mac Finder（旧版 iOS）</h3>
-    <ol style="padding-left: 20px; line-height: 1.8; font-size: 14px">
-      <li>iPhone 用线连 Mac</li>
-      <li>打开 <b>Finder</b>，左栏选你的 iPhone</li>
-      <li>顶部信息条点击 <b>"型号 / 容量 / 序列号"</b> 那一行会循环切换，切到 <b>UDID</b></li>
-      <li>右键 → <b>拷贝</b></li>
-    </ol>
-  </section>
-
-  <section class="card">
-    <h3>提交 UDID</h3>
+    <h3>② 回到 Safari，粘贴 + 提交</h3>
     {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
-    <form method="post" action="/d/{{.App.ShortID}}/udid" class="form">
+    <form method="post" action="/d/{{.App.ShortID}}/udid" class="form" id="udidForm">
       <label>本机 UDID
-        <input type="text" name="udid"
-               placeholder="例如 00008140-001A22D21E2B001C 或 40 字符 hex"
-               pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{16}|[0-9a-fA-F]{40}"
-               required autofocus
-               autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div style="display:flex; gap:8px; margin-top:6px">
+          <input type="text" name="udid" id="udidInput"
+                 placeholder="切回时会自动填入..."
+                 pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{16}|[0-9a-fA-F]{40}"
+                 required
+                 autocapitalize="off" autocorrect="off" spellcheck="false"
+                 style="flex:1">
+          <button type="button" id="pasteBtn" class="btn" style="white-space:nowrap">📋 粘贴</button>
+        </div>
       </label>
-      <button type="submit" class="btn btn-primary">提交</button>
+      <button type="submit" class="btn btn-primary">提交 UDID</button>
       <a class="btn" href="/d/{{.App.ShortID}}">取消</a>
     </form>
-    <p class="hint" style="margin-top: 16px">UDID 是设备唯一标识符，提交后会写入分发服务器的设备列表，开发者就能看到。</p>
   </section>
+
+  <details class="hint" style="margin-top: 16px">
+    <summary>其它获取方式（iOS 16 及更旧 / 没有"复制 UDID"选项）</summary>
+    <ul style="padding-left: 20px; line-height: 1.7">
+      <li><b>Mac Finder</b>：iPhone 用线连 Mac → Finder 左栏选 iPhone → 顶部"型号/容量/序列号"那一行点击会循环切换，切到 UDID 时拷贝</li>
+      <li><b>iTunes (Windows)</b>：iPhone 摘要页点序列号也能切换显示 UDID</li>
+    </ul>
+  </details>
 </main>
+
+<script>
+(function() {
+  const input = document.getElementById('udidInput');
+  const pasteBtn = document.getElementById('pasteBtn');
+  const udidRe = /([0-9a-fA-F]{8}-[0-9a-fA-F]{16}|[0-9a-fA-F]{40})/;
+
+  async function tryAutofill(silent) {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      if (!silent) alert('当前浏览器不支持自动粘贴，请手动长按输入框 → 粘贴');
+      return false;
+    }
+    try {
+      const txt = (await navigator.clipboard.readText() || '').trim();
+      const m = txt.match(udidRe);
+      if (m) {
+        input.value = m[1];
+        input.classList.add('autofilled');
+        input.dispatchEvent(new Event('input'));
+        return true;
+      }
+      if (!silent) {
+        alert('剪贴板里没有 UDID。先切到设置 → 通用 → 关于本机 → 长按"序列号"复制。');
+      }
+    } catch (e) {
+      if (!silent) alert('需要授权读取剪贴板。请手动长按输入框 → 粘贴。');
+    }
+    return false;
+  }
+
+  pasteBtn.addEventListener('click', () => tryAutofill(false));
+
+  // When the user returns from Settings.app, try to silently autofill.
+  // iOS Safari prompts the user the first time; from then on it's instant.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !input.value) {
+      tryAutofill(true);
+    }
+  });
+  // First load attempt — in case the UDID is already on the clipboard.
+  if (!input.value) tryAutofill(true);
+})();
+</script>
 {{template "foot" .}}
