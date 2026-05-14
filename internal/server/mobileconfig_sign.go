@@ -51,6 +51,23 @@ func (s *Server) signMobileconfig(unsigned []byte) ([]byte, error) {
 		}
 		intermediates = append(intermediates, c)
 	}
+	// Most .p12 exports from Apple Developer Portal / Keychain Access
+	// only contain the leaf + private key — the WWDR intermediate that
+	// actually issued the leaf is left to be picked up from the system
+	// trust store. iOS doesn't do that for mobileconfig validation, so
+	// auto-attach the right Apple WWDR intermediate when missing.
+	if ic := findAppleIntermediate(leaf); ic != nil {
+		already := false
+		for _, existing := range intermediates {
+			if existing.Equal(ic) {
+				already = true
+				break
+			}
+		}
+		if !already {
+			intermediates = append(intermediates, ic)
+		}
+	}
 
 	key, ok := tlsCert.PrivateKey.(crypto.Signer)
 	if !ok {
