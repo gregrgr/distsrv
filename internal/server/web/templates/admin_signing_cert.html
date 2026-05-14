@@ -67,18 +67,36 @@
         <tr><td>无 EKU 限制的证书</td><td>(无)</td><td style="color:var(--success)">✓ 可能</td></tr>
       </tbody>
     </table>
-    <h3 style="margin-top:16px">免费 S/MIME 证书来源</h3>
+    <h3 style="margin-top:16px">S/MIME 证书来源（2024 年后基本都需要付费）</h3>
+    <p class="hint" style="margin-bottom:8px">CA/Browser Forum 2024 S/MIME baseline 生效后，多数 CA 停了完全免费的个人 S/MIME（Actalis、Sectigo、Comodo 都已下线）。下面是目前还可用的来源：</p>
     <ul style="padding-left:20px;line-height:1.8">
-      <li><b>Actalis</b>（推荐，意大利 CA，全球受信）
+      <li><b>HARICA</b>（希腊学术 CA，公开可信）— 可能仍提供个人免费 email cert
         <ul style="padding-left:18px;font-size:13px">
-          <li><a href="https://extrassl.actalis.it/portal/uapub/freemail?lang=en" target="_blank" rel="noopener">申请页面</a> — 提交邮箱 → 收激活码 → 下载 .p12 + 拿密码</li>
-          <li>免费 1 年期；到期前再申请一份替换</li>
-          <li>过程不到 5 分钟，无需身份验证</li>
+          <li><a href="https://www.harica.gr/en/email-certificate/" target="_blank" rel="noopener">https://www.harica.gr/en/email-certificate/</a></li>
+          <li>需要注册账号 + email 验证</li>
         </ul>
       </li>
-      <li><b>GlobalSign / Sectigo / DigiCert</b>（付费，约 $15-30 / 年）— 用于正式生产</li>
+      <li><b>SSL.com</b>（付费，约 $20 / 年）— 标准 personal S/MIME
+        <ul style="padding-left:18px;font-size:13px">
+          <li><a href="https://www.ssl.com/certificates/email-smime/" target="_blank" rel="noopener">https://www.ssl.com/certificates/email-smime/</a></li>
+        </ul>
+      </li>
+      <li><b>DigiCert</b>（付费，约 $30+ / 年）— 企业品牌可信度高
+        <ul style="padding-left:18px;font-size:13px">
+          <li><a href="https://www.digicert.com/secure-email-smime-certificates" target="_blank" rel="noopener">https://www.digicert.com/secure-email-smime-certificates</a></li>
+        </ul>
+      </li>
     </ul>
-    <p class="hint" style="margin-top:8px">收到 .p12 后回到本页面上传，注意 Actalis 用邮件发的密码 → 输到下方的"导出密码"字段。</p>
+    <p class="hint" style="margin-top:8px">收到 .p12 + 密码后回到本页面上传。注意：CA 通常发 .p12 时邮件附密码，<b>务必输入到下方"导出密码"字段</b>。</p>
+
+    <h3 style="margin-top:20px">不想买证书？用手动 UDID 提交（零成本，所有 iOS 都支持）</h3>
+    <p>每个应用下载页 <code>/d/&lt;short_id&gt;</code> 都有"提交我的 UDID"按钮，配合 iOS 17+ 的<b>剪贴板自动粘贴</b>，用户操作只有 3 步：</p>
+    <ol style="padding-left:20px;line-height:1.7;font-size:14px">
+      <li>iPhone 设置 → 通用 → 关于本机 → 长按"序列号" → <b>"复制 UDID"</b></li>
+      <li>切回 Safari，授权"允许此网站粘贴" → UDID 自动填入</li>
+      <li>点"提交 UDID" → 成功后跳回下载页，绿色横幅显示 UDID</li>
+    </ol>
+    <p class="hint">这条路不依赖任何外部 CA，<b>iOS 16 / iOS 26 都能用</b>。如果你的内测设备不多，手动方式完全够用。</p>
   </section>
 
   <section class="card">
