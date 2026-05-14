@@ -435,12 +435,16 @@ func (s *Server) handleMobileconfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// iOS 16+ rejects unsigned PayloadType=Profile Service profiles as
-	// "无效的描述文件" — sign with whichever cert we've got (admin-
-	// uploaded profile-signing cert first, autocert TLS cert as a
-	// dev/legacy fallback).
 	w.Header().Set("Content-Disposition", `attachment; filename="udid.mobileconfig"`)
-	if s.getProfileSigningCert() != nil || s.autocert != nil {
+
+	// Sign only when an explicitly admin-uploaded profile-signing cert
+	// is present. Do NOT fall back to the LE TLS cert — iOS 16+ rejects
+	// profiles signed with TLS-server certs, so an unsigned profile (which
+	// installs with a "Not Verified" warning but works) is strictly better
+	// than a mis-signed one (which iOS rejects outright as "Invalid Profile").
+	// This is the "zealot" approach (github.com/tryzealot/zealot serves
+	// unsigned by default too).
+	if s.getProfileSigningCert() != nil {
 		signed, err := s.signMobileconfig(buf.Bytes())
 		if err != nil {
 			log.Printf("mobileconfig sign: %v — falling back to unsigned", err)
@@ -450,7 +454,8 @@ func (s *Server) handleMobileconfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Last-resort fallback: serve unsigned XML.
+	// Default path: unsigned XML. iOS shows "Not Verified" on the
+	// install sheet but allows the install to proceed.
 	w.Header().Set("Content-Type", "application/x-apple-aspen-config; charset=utf-8")
 	_, _ = w.Write(buf.Bytes())
 }

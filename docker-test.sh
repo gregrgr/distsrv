@@ -299,6 +299,13 @@ echo "$UUID_VAL" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f
   || { echo "  ✗ PayloadUUID 不是合法 v4 UUID: '$UUID_VAL'"; exit 1; }
 echo "  ✓ mobileconfig 合法 XML + PayloadUUID 是 RFC 4122 v4 UUID"
 
+# Default mode (no admin-uploaded profile-signing cert): mobileconfig
+# must be served as UNSIGNED XML, NOT as a TLS-cert-signed PKCS7 (which
+# iOS 16+ would reject as Invalid Profile). This is the "zealot" model.
+head -c 5 /tmp/cli.mobileconfig | grep -q "^<?xml" \
+  || { echo "  ✗ 默认状态下 mobileconfig 应是 unsigned XML (zealot-style)"; head -c 100 /tmp/cli.mobileconfig | od -An -tx1 | head -2; exit 1; }
+echo "  ✓ 默认 mobileconfig 是 unsigned XML（zealot-style，iOS 弹未签名警告但能装）"
+
 # Regression: uploading a *second* version should auto-promote it to "current".
 WORK2=$(mktemp -d)
 mkdir -p "$WORK2/Payload/Fake.app"

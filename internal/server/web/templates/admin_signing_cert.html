@@ -12,9 +12,14 @@
   {{if .ErrorMsg}}<div class="alert error">{{.ErrorMsg}}</div>{{end}}
 
   <p class="hint">
-    用于 PKCS7 签名 UDID 收集 mobileconfig，iOS 16+/26 必须用 Apple Developer 颁发的
-    code-signing 证书才能接受这个描述文件。装上后下载页会显示「📥 一键获取 UDID（自动）」按钮。
+    可选。不装证书时 distsrv 会按 zealot 同款方式发<b>未签名</b> mobileconfig — iPhone 装的时候
+    会弹一句"未签名"警告但可以继续装（绝大多数 iOS 版本都接受）。装了证书是为了去掉这条警告。
   </p>
+  <div class="alert" style="background:var(--primary-soft);border:1px solid var(--primary);margin-bottom:16px">
+    <b>⚠ iOS 26 实测</b>：用 Let's Encrypt TLS 证书或 Apple Distribution 证书签的 mobileconfig
+    都会被拒为"无效的描述文件"。Actalis 等外部 S/MIME 证书签的也未必通过。建议优先尝试<b>不装证书</b>
+    的默认 unsigned 模式 — 大部分 iOS 都能装，只多一个"未签名"提示。
+  </div>
 
   <section class="card">
     <h3>当前证书</h3>

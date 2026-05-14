@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -13,26 +12,17 @@ import (
 // signMobileconfig wraps the raw unsigned XML in a CMS (PKCS#7) signed
 // envelope.
 //
-// Cert selection (in order):
-//  1. profileSigningCert from [server.profile_signing] — Apple-issued
-//     code-signing cert is the only thing iOS 16+/26 accepts for
-//     PayloadType=Profile Service.
-//  2. Live TLS cert from autocert — works on macOS / older iOS, but
-//     iOS 16+ rejects mobileconfigs signed with TLS server certs.
-//  3. Error in dev mode (no certs at all).
+// Only signs if the admin uploaded a dedicated profile-signing cert via
+// /admin/signing-cert. We deliberately do NOT fall back to the LE TLS
+// cert — iOS 16+/26 rejects mobileconfigs signed with TLS server certs
+// ("Code Signing"-EKU and friends), so signing with the wrong cert is
+// strictly worse than not signing at all (unsigned profiles install
+// with a 'Not Verified' warning; mis-signed profiles get rejected
+// outright as 'Invalid Profile').
 func (s *Server) signMobileconfig(unsigned []byte) ([]byte, error) {
-	var tlsCert *tls.Certificate
-	if c := s.getProfileSigningCert(); c != nil {
-		tlsCert = c
-	} else if s.autocert != nil {
-		chi := &tls.ClientHelloInfo{ServerName: s.cfg.Server.Domain}
-		c, err := s.autocert.GetCertificate(chi)
-		if err != nil {
-			return nil, fmt.Errorf("get tls cert: %w", err)
-		}
-		tlsCert = c
-	} else {
-		return nil, errors.New("no signing cert available (no profile_signing cert and no autocert)")
+	tlsCert := s.getProfileSigningCert()
+	if tlsCert == nil {
+		return nil, errors.New("no profile-signing cert configured")
 	}
 	if len(tlsCert.Certificate) == 0 {
 		return nil, errors.New("empty cert chain")
