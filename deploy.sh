@@ -192,8 +192,8 @@ echo "二进制: $BINARY ($(du -h "$BINARY" | cut -f1))"
 step "安装系统依赖"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl sqlite3 iproute2 >/dev/null
-echo "依赖已安装：ca-certificates curl sqlite3 iproute2"
+apt-get install -y -qq ca-certificates curl sqlite3 iproute2 openssl >/dev/null
+echo "依赖已安装：ca-certificates curl sqlite3 iproute2 openssl"
 
 # ============================================================
 # 5. 创建用户与目录

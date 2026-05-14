@@ -497,6 +497,27 @@ echo "  ✓ EKU=Code Signing 证书触发 Unsuitable 警告 + Actalis 推荐 UI"
 curl -sS -b "$CK" -o /dev/null -X POST "$SERVER/admin/signing-cert/delete"
 rm -rf "$WORK4"
 
+# Regression: P12 generated with OpenSSL DEFAULTS (PBES2/AES + BER
+# encoding — what Actalis et al. send) must also decode. The pure-Go
+# decoder will fail on this; distsrv falls back to the openssl CLI.
+WORK5=$(mktemp -d)
+openssl req -x509 -newkey rsa:2048 \
+  -keyout "$WORK5/k.pem" -out "$WORK5/c.pem" \
+  -days 30 -nodes -subj "/CN=distsrv ber test/O=distsrv test" >/dev/null 2>&1
+P12_PASS="ber-$RANDOM"
+# Default openssl pkcs12 export — modern PBES2-AES + BER indef-length
+openssl pkcs12 -export -inkey "$WORK5/k.pem" -in "$WORK5/c.pem" \
+  -out "$WORK5/ber.p12" -password "pass:$P12_PASS" >/dev/null 2>&1
+curl -sS -b "$CK" -o /dev/null \
+  -X POST "$SERVER/admin/signing-cert" \
+  -F "p12=@$WORK5/ber.p12" -F "password=$P12_PASS"
+DETAIL5=$(curl -sS -b "$CK" "$SERVER/admin/signing-cert")
+echo "$DETAIL5" | grep -q "distsrv ber test" \
+  || { echo "  ✗ openssl-default-export P12 (BER/PBES2) 解析失败"; echo "$DETAIL5" | grep -E '解析|error|Error' | head -3; exit 1; }
+echo "  ✓ BER/PBES2-AES 编码的 .p12 也能解析（openssl CLI fallback）"
+curl -sS -b "$CK" -o /dev/null -X POST "$SERVER/admin/signing-cert/delete"
+rm -rf "$WORK5"
+
 rm -rf "$WORK3"
 
 # Home page: each app is a single entry link to /d/<short>; the actual

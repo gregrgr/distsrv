@@ -8,8 +8,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 
@@ -45,29 +48,105 @@ func loadProfileSigningCertFromDataDir(dataDir string) (*tls.Certificate, error)
 	})
 }
 
-// decodePKCS12ToPEM unpacks an Apple Developer .p12 export into a
-// CERTIFICATE chain PEM and a single PRIVATE KEY PEM, ready for
-// tls.X509KeyPair or for writing to disk.
+// decodePKCS12ToPEM unpacks a .p12/.pfx export into a CERTIFICATE
+// chain PEM and a single PRIVATE KEY PEM.
+//
+// Tries the in-process sslmate go-pkcs12 first (no external deps).
+// If that fails — typically because the file is BER-encoded with
+// indefinite-length forms (OpenSSL default) which Go's encoding/asn1
+// rejects — fall back to shelling out to the `openssl pkcs12` CLI,
+// which handles every variant we've ever seen in the wild (Apple
+// Keychain, Actalis, Sectigo, OpenJDK keytool, …).
 func decodePKCS12ToPEM(p12Data []byte, password string) (certPEM, keyPEM []byte, err error) {
+	// Path A: pure-Go decoder.
+	if c, k, err := decodePKCS12Sslmate(p12Data, password); err == nil {
+		return c, k, nil
+	} else {
+		log.Printf("sslmate pkcs12 decode failed (will try openssl CLI): %v", err)
+	}
+	// Path B: openssl CLI fallback.
+	return decodePKCS12OpenSSL(p12Data, password)
+}
+
+func decodePKCS12Sslmate(p12Data []byte, password string) (certPEM, keyPEM []byte, err error) {
 	blocks, err := pkcs12.ToPEM(p12Data, password)
 	if err != nil {
-		return nil, nil, fmt.Errorf("decode pkcs12 (wrong password or corrupt file?): %w", err)
+		return nil, nil, fmt.Errorf("sslmate: %w", err)
 	}
 	var certBuf, keyBuf bytes.Buffer
 	for _, b := range blocks {
 		pem.Encode(pickBuf(b.Type, &certBuf, &keyBuf), b)
 	}
 	if certBuf.Len() == 0 {
-		return nil, nil, errors.New("pkcs12 contains no CERTIFICATE blocks")
+		return nil, nil, errors.New("sslmate: no CERTIFICATE blocks")
 	}
 	if keyBuf.Len() == 0 {
-		return nil, nil, errors.New("pkcs12 contains no PRIVATE KEY block")
+		return nil, nil, errors.New("sslmate: no PRIVATE KEY block")
 	}
-	// Sanity check: the result must form a valid keypair.
 	if _, err := tls.X509KeyPair(certBuf.Bytes(), keyBuf.Bytes()); err != nil {
-		return nil, nil, fmt.Errorf("decoded pkcs12 cert/key don't form a keypair: %w", err)
+		return nil, nil, fmt.Errorf("sslmate cert/key not a keypair: %w", err)
 	}
 	return certBuf.Bytes(), keyBuf.Bytes(), nil
+}
+
+// decodePKCS12OpenSSL writes the .p12 to a temp file (no other way to
+// hand binary input to `openssl pkcs12 -in`) and asks the openssl CLI
+// to unbox it. The password is fed via -passin stdin so it doesn't
+// leak into the process listing or the binary on disk.
+func decodePKCS12OpenSSL(p12Data []byte, password string) (certPEM, keyPEM []byte, err error) {
+	if _, err := exec.LookPath("openssl"); err != nil {
+		return nil, nil, fmt.Errorf("openssl CLI not found in PATH (apt install openssl): %w", err)
+	}
+	tmpDir, err := os.MkdirTemp("", "distsrv-p12-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("mktemp: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	p12Path := filepath.Join(tmpDir, "in.p12")
+	if err := os.WriteFile(p12Path, p12Data, 0o600); err != nil {
+		return nil, nil, fmt.Errorf("write tmp p12: %w", err)
+	}
+
+	// `-legacy` lets OpenSSL 3 still read .p12 files using older PBE
+	// algorithms (RC2 / 3DES). Modern OpenSSL also defaults to that
+	// when it sees a legacy file. Trying without -legacy first keeps
+	// behavior identical for current OpenSSL defaults.
+	for _, args := range [][]string{
+		{"pkcs12", "-in", p12Path, "-passin", "stdin", "-nodes"},
+		{"pkcs12", "-in", p12Path, "-passin", "stdin", "-nodes", "-legacy"},
+	} {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.Command("openssl", args...)
+		cmd.Stdin = strings.NewReader(password + "\n")
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			log.Printf("openssl %v failed: %v (%s)", args, err, strings.TrimSpace(stderr.String()))
+			continue
+		}
+		out := stdout.Bytes()
+		var certBuf, keyBuf bytes.Buffer
+		rest := out
+		for {
+			block, r := pem.Decode(rest)
+			if block == nil {
+				break
+			}
+			pem.Encode(pickBuf(block.Type, &certBuf, &keyBuf), block)
+			rest = r
+		}
+		if certBuf.Len() == 0 {
+			continue
+		}
+		if keyBuf.Len() == 0 {
+			continue
+		}
+		if _, err := tls.X509KeyPair(certBuf.Bytes(), keyBuf.Bytes()); err != nil {
+			continue
+		}
+		return certBuf.Bytes(), keyBuf.Bytes(), nil
+	}
+	return nil, nil, errors.New("openssl pkcs12: 解 .p12 失败（密码错误或文件损坏？也可能是 server 没装 openssl — apt install openssl）")
 }
 
 // saveProfileSigningPEM writes the cert chain + key PEMs to data_dir
