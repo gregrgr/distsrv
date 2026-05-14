@@ -173,5 +173,8 @@ func pickBestIcon(files []*zip.File, appDir string, iconNames []string) []byte {
 	if _, err := io.Copy(&buf, rc); err != nil {
 		return nil
 	}
-	return buf.Bytes()
+	// iOS icons are Apple-optimized "CgBI" PNGs that only Safari/UIKit
+	// decode natively. Convert to a standards-compliant PNG so Chrome /
+	// Firefox / Edge on desktop can also render them.
+	return NormalizeAppleCgBI(buf.Bytes())
 }

@@ -20,6 +20,7 @@ import (
 
 	"distsrv/internal/auth"
 	"distsrv/internal/db"
+	"distsrv/internal/parser"
 )
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -276,6 +277,17 @@ func (s *Server) handleIcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	abs := s.storage.AbsPath(v.IconPath)
+
+	// Lazy migration: icons uploaded before the CgBI fix are still
+	// Apple-optimized PNGs that don't render outside Safari/UIKit.
+	// Detect + rewrite once, persistently.
+	if data, err := os.ReadFile(abs); err == nil && parser.IsAppleCgBIPNG(data) {
+		fixed := parser.NormalizeAppleCgBI(data)
+		if !bytes.Equal(fixed, data) {
+			_ = os.WriteFile(abs, fixed, 0o640)
+		}
+	}
+
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, abs)
